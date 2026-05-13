@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^mkdir lambda$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
