@@ -26,6 +26,10 @@ def get_emag_data(url):
                 price_main = match.group(1).replace('.', '')
                 price_cents = match.group(2)
                 price = Decimal(f"{price_main}.{price_cents}")
+            else:
+                json_match = re.search(r'"current":([0-9\.]+),', html)
+                if json_match:
+                    price = Decimal(json_match.group(1))
                 
             name = url
             title_match = re.search(r'<title>(.*?)</title>', html, re.IGNORECASE | re.DOTALL)
