@@ -11,7 +11,7 @@ dynamodb = boto3.resource('dynamodb')
 table_name = os.environ.get('TABLE_NAME', '')
 table = dynamodb.Table(table_name)
 
-def get_emag_price(url):
+def get_emag_data(url):
     try:
         req = urllib.request.Request(
             url, 
@@ -19,14 +19,24 @@ def get_emag_price(url):
         )
         with urllib.request.urlopen(req) as response:
             html = response.read().decode('utf-8')
+            
+            price = None
             match = re.search(r'<p class="product-new-price">([0-9\.]+)<sup>([0-9]+)</sup>', html)
             if match:
                 price_main = match.group(1).replace('.', '')
                 price_cents = match.group(2)
-                return Decimal(f"{price_main}.{price_cents}")
+                price = Decimal(f"{price_main}.{price_cents}")
+                
+            name = url
+            title_match = re.search(r'<title>(.*?)</title>', html, re.IGNORECASE | re.DOTALL)
+            if title_match:
+                # Strip out common eMag title suffixes
+                name = title_match.group(1).replace('- eMAG.ro', '').replace('eMAG.ro', '').strip()
+                
+            return {"price": price, "name": name}
     except Exception as e:
         print(f"Error fetching from {url}: {e}")
-    return None
+    return {"price": None, "name": url}
 
 def handler(event, context):
     try:
@@ -41,13 +51,16 @@ def handler(event, context):
         user_id = claims.get('sub', 'anonymous')
         email = claims.get('email', 'no-email')
         
+        emag_data = get_emag_data(url)
+        
         item_id = str(uuid.uuid4())
         item = {
             'id': item_id,
             'user_id': user_id,
             'email': email,
             'url': url,
-            'last_price': get_emag_price(url),
+            'last_price': emag_data['price'],
+            'name': emag_data['name'],
             'last_check_time': int(time.time())
         }
         

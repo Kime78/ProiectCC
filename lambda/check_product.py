@@ -10,7 +10,7 @@ dynamodb = boto3.resource('dynamodb')
 table_name = os.environ.get('TABLE_NAME', '')
 table = dynamodb.Table(table_name)
 
-def get_emag_price(url):
+def get_emag_data(url):
     try:
         req = urllib.request.Request(
             url, 
@@ -18,14 +18,23 @@ def get_emag_price(url):
         )
         with urllib.request.urlopen(req) as response:
             html = response.read().decode('utf-8')
+            
+            price = None
             match = re.search(r'<p class="product-new-price">([0-9\.]+)<sup>([0-9]+)</sup>', html)
             if match:
                 price_main = match.group(1).replace('.', '')
                 price_cents = match.group(2)
-                return Decimal(f"{price_main}.{price_cents}")
+                price = Decimal(f"{price_main}.{price_cents}")
+                
+            name = url
+            title_match = re.search(r'<title>(.*?)</title>', html, re.IGNORECASE | re.DOTALL)
+            if title_match:
+                name = title_match.group(1).replace('- eMAG.ro', '').replace('eMAG.ro', '').strip()
+                
+            return {"price": price, "name": name}
     except Exception as e:
         print(f"Error fetching from {url}: {e}")
-    return None
+    return {"price": None, "name": url}
 
 class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -43,16 +52,20 @@ def handler(event, context):
         if not item or item.get('user_id') != user_id:
             return {"statusCode": 404, "body": json.dumps({"error": "Product not found"})}
             
-        current_price = get_emag_price(item['url'])
+        emag_data = get_emag_data(item['url'])
+        current_price = emag_data['price']
+        
         if current_price is not None:
             updated_time = int(time.time())
             table.update_item(
                 Key={'id': product_id},
-                UpdateExpression="set last_price = :p, last_check_time = :t",
-                ExpressionAttributeValues={':p': current_price, ':t': updated_time}
+                UpdateExpression="set last_price = :p, last_check_time = :t, #n = :n",
+                ExpressionAttributeNames={'#n': 'name'},
+                ExpressionAttributeValues={':p': current_price, ':t': updated_time, ':n': emag_data['name']}
             )
             item['last_price'] = current_price
             item['last_check_time'] = updated_time
+            item['name'] = emag_data['name']
 
         return {
             "statusCode": 200,

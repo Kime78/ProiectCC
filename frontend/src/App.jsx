@@ -128,9 +128,14 @@ function App({ signOut, user }) {
           {products.map((p) => (
             <div key={p.id} className="border border-gray-200 rounded-xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white hover:border-blue-300 transition-colors shadow-sm">
               <div className="truncate pr-4 flex-1 mb-4 sm:mb-0 w-full">
-                <a href={p.url} target="_blank" rel="noreferrer" className="text-blue-600 font-medium hover:underline hover:text-blue-800 truncate block">
-                  {p.url}
+                <a href={p.url} target="_blank" rel="noreferrer" className="text-gray-900 font-bold hover:underline hover:text-blue-600 truncate block text-lg mb-1">
+                  {p.name || p.url}
                 </a>
+                {p.name && (
+                  <a href={p.url} target="_blank" rel="noreferrer" className="text-gray-400 text-xs hover:text-blue-500 truncate block">
+                    {p.url}
+                  </a>
+                )}
                 <div className="text-sm text-gray-500 mt-2 flex flex-col sm:flex-row items-start sm:items-center gap-2">
                   <div className="flex items-center gap-2">
                     <span className="bg-gray-100 px-2 py-1 rounded">Last Checked Price:</span>

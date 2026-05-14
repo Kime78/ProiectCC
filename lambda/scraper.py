@@ -13,7 +13,7 @@ table_name = os.environ.get('TABLE_NAME', '')
 sender_email = os.environ.get('SENDER_EMAIL', 'alerts@yourdomain.com')
 table = dynamodb.Table(table_name)
 
-def get_emag_price(url):
+def get_emag_data(url):
     try:
         # eMag requires a User-Agent header, otherwise it returns a 403 Forbidden
         req = urllib.request.Request(
@@ -23,16 +23,22 @@ def get_emag_price(url):
         with urllib.request.urlopen(req) as response:
             html = response.read().decode('utf-8')
             
-            # naive regex to find eMag's price paragraph
-            # typically it looks like: <p class="product-new-price">1.234<sup>56</sup> <span>Lei</span></p>
+            price = None
             match = re.search(r'<p class="product-new-price">([0-9\.]+)<sup>([0-9]+)</sup>', html)
             if match:
-                price_main = match.group(1).replace('.', '') # remove thousands separator
+                price_main = match.group(1).replace('.', '')
                 price_cents = match.group(2)
-                return Decimal(f"{price_main}.{price_cents}")
+                price = Decimal(f"{price_main}.{price_cents}")
+                
+            name = url
+            title_match = re.search(r'<title>(.*?)</title>', html, re.IGNORECASE | re.DOTALL)
+            if title_match:
+                name = title_match.group(1).replace('- eMAG.ro', '').replace('eMAG.ro', '').strip()
+                
+            return {"price": price, "name": name}
     except Exception as e:
         print(f"Error fetching from {url}: {e}")
-    return None
+    return {"price": None, "name": url}
 
 def handler(event, context):
     print("Scraper event starting...")
@@ -47,14 +53,17 @@ def handler(event, context):
         last_price = item.get('last_price')
         email = item.get('email')
         
-        current_price = get_emag_price(url)
+        emag_data = get_emag_data(url)
+        current_price = emag_data['price']
+        fetched_name = emag_data['name']
+        product_name = item.get('name', fetched_name)
         
         if current_price is not None:
             print(f"Price found for {url}: {current_price}")
             
             # Send Notification if the current price is strictly less than the last known price
             if last_price and current_price < last_price and email:
-                message = f"Good news! The product you tracked has dropped from {last_price} to {current_price} Lei.\n\nLink: {url}"
+                message = f"Good news! '{product_name}' has dropped from {last_price} to {current_price} Lei.\n\nLink: {url}"
                 
                 try:
                     ses.send_email(
@@ -70,8 +79,9 @@ def handler(event, context):
             
             table.update_item(
                 Key={'id': item['id']},
-                UpdateExpression="set last_price = :p, last_check_time = :t",
-                ExpressionAttributeValues={':p': current_price, ':t': int(time.time())}
+                UpdateExpression="set last_price = :p, last_check_time = :t, #n = :n",
+                ExpressionAttributeNames={'#n': 'name'},
+                ExpressionAttributeValues={':p': current_price, ':t': int(time.time()), ':n': product_name}
             )
 
     # Email the admin about the automatic check
