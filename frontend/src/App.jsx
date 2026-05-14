@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { withAuthenticator } from '@aws-amplify/ui-react';
+import { Authenticator } from '@aws-amplify/ui-react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 // Environment variables populated by CI/CD
@@ -176,4 +176,25 @@ function App({ signOut, user }) {
   );
 }
 
-export default withAuthenticator(App);
+const components = {
+  ConfirmSignUp: {
+    Header() {
+      return (
+        <div className="p-4 text-center">
+          <h3 className="text-xl font-bold mb-2">We sent you a code</h3>
+          <p className="text-red-500 font-semibold text-sm bg-red-50 p-2 rounded">
+            ⚠️ Please check your SPAM/Junk folder if you don't see the email!
+          </p>
+        </div>
+      );
+    },
+  },
+};
+
+export default function AppWithAuth() {
+  return (
+    <Authenticator components={components}>
+      {({ signOut, user }) => <App signOut={signOut} user={user} />}
+    </Authenticator>
+  );
+}
