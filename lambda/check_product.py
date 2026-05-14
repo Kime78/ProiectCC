@@ -59,28 +59,44 @@ def response(status_code: int, body: dict):
     }
 
 
+def parse_decimal(raw_value):
+    if raw_value is None:
+        return None
+
+    raw_value = raw_value.strip()
+
+    if "," in raw_value and "." in raw_value:
+        raw_value = raw_value.replace(".", "").replace(",", ".")
+    elif "," in raw_value:
+        raw_value = raw_value.replace(",", ".")
+
+    try:
+        return Decimal(raw_value)
+    except Exception:
+        return None
+
+
 def extract_price(html: str):
     """
     Extract price from eMAG page.
     """
 
-    # Preferred format
-    match = re.search(
-        r'<p class="product-new-price">([\d\.]+)<sup>(\d+)</sup>',
-        html,
-        re.IGNORECASE,
-    )
+    patterns = [
+        r'product-new-price[^>]*>\s*([0-9\.,\s]+)\s*<sup>([0-9]{2})</sup>',
+        r'"current"\s*:\s*([0-9\.,]+)',
+        r'"price"\s*:\s*"([0-9\.,]+)"',
+    ]
 
-    if match:
-        main = match.group(1).replace(".", "")
-        cents = match.group(2)
-        return Decimal(f"{main}.{cents}")
+    for pattern in patterns:
+        match = re.search(pattern, html, re.IGNORECASE)
 
-    # JSON fallback
-    match = re.search(r'"current":\s*([\d\.]+)', html)
+        if match:
+            if len(match.groups()) == 2:
+                main = re.sub(r"\D", "", match.group(1))
+                cents = re.sub(r"\D", "", match.group(2))
+                return parse_decimal(f"{main}.{cents}")
 
-    if match:
-        return Decimal(match.group(1))
+            return parse_decimal(match.group(1))
 
     return None
 
@@ -124,7 +140,7 @@ def fetch_html(url: str):
         url,
         headers={
             "User-Agent": USER_AGENT,
-            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Language": "ro-RO,ro;q=0.9,en;q=0.8",
         },
     )
 
@@ -204,45 +220,45 @@ def handler(event, context):
         emag_data = get_emag_data(item["url"])
 
         current_price = emag_data["price"]
+        updated_time = int(time.time())
+
+        update_parts = [
+            "last_check_time = :time",
+            "#name = :name",
+        ]
+        expression_values = {
+            ":time": updated_time,
+            ":name": emag_data["name"],
+        }
+        expression_names = {
+            "#name": "name",
+        }
 
         if current_price is not None:
-            updated_time = int(time.time())
+            update_parts.insert(0, "last_price = :price")
+            expression_values[":price"] = current_price
 
-            update_expression = """
-                SET
-                    last_price = :price,
-                    last_check_time = :time,
-                    #name = :name
-            """
+        if emag_data["image"]:
+            update_parts.append("image = :image")
+            expression_values[":image"] = emag_data["image"]
 
-            expression_values = {
-                ":price": current_price,
-                ":time": updated_time,
-                ":name": emag_data["name"],
-            }
+        update_expression = "SET " + ", ".join(update_parts)
 
-            expression_names = {
-                "#name": "name",
-            }
+        table.update_item(
+            Key={"id": product_id},
+            UpdateExpression=update_expression,
+            ExpressionAttributeValues=expression_values,
+            ExpressionAttributeNames=expression_names,
+        )
 
-            if emag_data["image"]:
-                update_expression += ", image = :image"
-                expression_values[":image"] = emag_data["image"]
-
-            table.update_item(
-                Key={"id": product_id},
-                UpdateExpression=update_expression,
-                ExpressionAttributeValues=expression_values,
-                ExpressionAttributeNames=expression_names,
-            )
-
-            # Update local object
+        # Update local object
+        if current_price is not None:
             item["last_price"] = current_price
-            item["last_check_time"] = updated_time
-            item["name"] = emag_data["name"]
+        item["last_check_time"] = updated_time
+        item["name"] = emag_data["name"]
 
-            if emag_data["image"]:
-                item["image"] = emag_data["image"]
+        if emag_data["image"]:
+            item["image"] = emag_data["image"]
 
         logger.info(
             f"Checked product {product_id} for user {user_id}"

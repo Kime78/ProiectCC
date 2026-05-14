@@ -20,6 +20,13 @@ function App({ signOut, user }) {
     });
   };
 
+  const getErrorMessage = (err, fallback) => {
+    if (err?.response?.data?.error) return err.response.data.error;
+    if (err?.response?.data?.message) return err.response.data.message;
+    if (err?.message) return err.message;
+    return fallback;
+  };
+
   const getHeaders = async () => {
     try {
       const session = await fetchAuthSession();
@@ -38,7 +45,7 @@ function App({ signOut, user }) {
       setProducts(res.data.products || []);
     } catch (err) {
       console.error("Error fetching products:", err);
-      addLog("Failed to fetch products", "error");
+      addLog(`Failed to fetch products: ${getErrorMessage(err, "Unknown error")}`, "error");
     }
   };
 
@@ -54,7 +61,7 @@ function App({ signOut, user }) {
       addLog("Product added successfully!", "success");
     } catch (err) {
       console.error("Error adding product:", err);
-      addLog("Failed to add product.", "error");
+      addLog(`Failed to add product: ${getErrorMessage(err, "Unknown error")}`, "error");
     }
     setLoading(false);
   };
@@ -67,7 +74,7 @@ function App({ signOut, user }) {
       addLog("Product removed", "info");
     } catch (err) {
       console.error("Error deleting product:", err);
-      addLog("Failed to remove product", "error");
+      addLog(`Failed to remove product: ${getErrorMessage(err, "Unknown error")}`, "error");
     }
   };
 
@@ -81,7 +88,7 @@ function App({ signOut, user }) {
       addLog("Price check complete!", "success");
     } catch (err) {
       console.error("Error checking product:", err);
-      addLog("Failed to check product", "error");
+      addLog(`Failed to check product: ${getErrorMessage(err, "Unknown error")}`, "error");
     } finally {
       setCheckingId(null);
     }
@@ -162,8 +169,15 @@ function App({ signOut, user }) {
         )}
 
         <div className="space-y-4">
-          {products.map((p) => (
-            <div key={p.id} className="border border-gray-200 rounded-xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white hover:border-blue-300 transition-colors shadow-sm">
+          {products.map((p) => {
+            const isChecking = checkingId === p.id;
+            return (
+            <div
+              key={p.id}
+              className={`border border-gray-200 rounded-xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white hover:border-blue-300 transition-colors shadow-sm ${
+                isChecking ? "ring-2 ring-blue-200 bg-blue-50/40" : ""
+              }`}
+            >
               <div className="flex gap-4 flex-1 items-start w-full">
                 {/* PRODUCT PHOTO */}
                 <div className="w-20 h-20 flex-shrink-0 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden flex items-center justify-center">
@@ -194,26 +208,40 @@ function App({ signOut, user }) {
                       Next automatic check roughly around: {getNextCheckTime(p.last_check_time)}
                     </div>
                   </div>
+                  <div className="text-xs text-gray-500 mt-2">
+                    {p.last_check_time ? (
+                      <>Last checked at {new Date(p.last_check_time * 1000).toLocaleString()}</>
+                    ) : (
+                      <>Not checked yet</>
+                    )}
+                  </div>
+                  {isChecking && (
+                    <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1 rounded-full">
+                      <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
+                      Checking now...
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mt-4 sm:mt-0">
                 <button 
                   onClick={() => checkProduct(p.id)} 
-                  disabled={checkingId === p.id}
-                  className={`${checkingId === p.id ? 'bg-gray-100 text-gray-400' : 'text-blue-600 hover:bg-blue-50 hover:text-blue-800'} font-medium px-4 py-2 border border-blue-200 rounded-lg transition-colors whitespace-nowrap`}
+                  disabled={isChecking}
+                  className={`${isChecking ? 'bg-gray-100 text-gray-400' : 'text-blue-600 hover:bg-blue-50 hover:text-blue-800'} font-medium px-4 py-2 border border-blue-200 rounded-lg transition-colors whitespace-nowrap`}
                 >
-                  {checkingId === p.id ? 'Checking...' : 'Check Now'}
+                  {isChecking ? 'Checking...' : 'Check Now'}
                 </button>
                 <button 
                   onClick={() => deleteProduct(p.id)} 
-                  disabled={checkingId === p.id}
+                  disabled={isChecking}
                   className="text-red-500 hover:text-red-700 font-medium px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap disabled:opacity-50"
                 >
                   Stop Tracking
                 </button>
               </div>
             </div>
-          ))}
+          );
+          })}
           {products.length === 0 && (
             <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-500">
               <span className="text-4xl mb-2 block">🏷️</span>

@@ -58,15 +58,32 @@ def fetch_url(url):
     return None
 
 
+def parse_decimal(raw_value):
+    if raw_value is None:
+        return None
+
+    raw_value = raw_value.strip()
+
+    if "," in raw_value and "." in raw_value:
+        raw_value = raw_value.replace(".", "").replace(",", ".")
+    elif "," in raw_value:
+        raw_value = raw_value.replace(",", ".")
+
+    try:
+        return Decimal(raw_value)
+    except Exception:
+        return None
+
+
 def extract_price(html):
     """
     Extract price from eMAG HTML.
     """
 
     patterns = [
-        r'product-new-price[^>]*>\s*([0-9\.,]+)\s*<sup>([0-9]{2})</sup>',
-        r'"current"\s*:\s*([0-9\.]+)',
-        r'"price"\s*:\s*"([0-9\.]+)"'
+        r'product-new-price[^>]*>\s*([0-9\.,\s]+)\s*<sup>([0-9]{2})</sup>',
+        r'"current"\s*:\s*([0-9\.,]+)',
+        r'"price"\s*:\s*"([0-9\.,]+)"'
     ]
 
     for pattern in patterns:
@@ -74,12 +91,26 @@ def extract_price(html):
 
         if match:
             if len(match.groups()) == 2:
-                main = match.group(1).replace('.', '').replace(',', '')
-                cents = match.group(2)
+                main = re.sub(r"\D", "", match.group(1))
+                cents = re.sub(r"\D", "", match.group(2))
+                return parse_decimal(f"{main}.{cents}")
 
-                return Decimal(f"{main}.{cents}")
+            return parse_decimal(match.group(1))
 
-            return Decimal(match.group(1))
+    return None
+
+
+def extract_image(html):
+    patterns = [
+        r'<meta[^>]+property="og:image"[^>]+content="([^"]+)"',
+        r'<meta[^>]+content="([^"]+)"[^>]+property="og:image"',
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, html, re.IGNORECASE)
+
+        if match:
+            return match.group(1)
 
     return None
 
@@ -122,7 +153,8 @@ def get_emag_data(url):
 
     return {
         "price": extract_price(html),
-        "name": extract_title(html, url)
+        "name": extract_title(html, url),
+        "image": extract_image(html)
     }
 
 
@@ -186,26 +218,33 @@ def get_all_items():
     return items
 
 
-def update_product(item_id, current_price, product_name):
+def update_product(item_id, current_price, product_name, image=None):
     """
     Update DynamoDB item.
     """
+    update_expression = (
+        "SET last_price = :p, "
+        "last_check_time = :t, "
+        "#n = :n"
+    )
+    expression_values = {
+        ':p': current_price,
+        ':t': int(time.time()),
+        ':n': product_name
+    }
+    expression_names = {
+        '#n': 'name'
+    }
+
+    if image:
+        update_expression += ", image = :i"
+        expression_values[':i'] = image
 
     table.update_item(
         Key={'id': item_id},
-        UpdateExpression=(
-            "SET last_price = :p, "
-            "last_check_time = :t, "
-            "#n = :n"
-        ),
-        ExpressionAttributeNames={
-            '#n': 'name'
-        },
-        ExpressionAttributeValues={
-            ':p': current_price,
-            ':t': int(time.time()),
-            ':n': product_name
-        }
+        UpdateExpression=update_expression,
+        ExpressionAttributeNames=expression_names,
+        ExpressionAttributeValues=expression_values
     )
 
 
@@ -234,6 +273,7 @@ def handler(event, context):
 
             current_price = emag_data['price']
             product_name = item.get('name') or emag_data['name']
+            image = emag_data.get('image')
 
             if current_price is None:
                 print(f"[NO PRICE] {url}")
@@ -267,7 +307,8 @@ def handler(event, context):
                 update_product(
                     item['id'],
                     current_price,
-                    product_name
+                    product_name,
+                    image
                 )
 
             processed += 1
