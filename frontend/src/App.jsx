@@ -10,6 +10,15 @@ function App({ signOut, user }) {
   const [products, setProducts] = useState([]);
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingId, setCheckingId] = useState(null);
+  const [logs, setLogs] = useState([]);
+
+  const addLog = (msg, type = "info") => {
+    setLogs((prev) => {
+      const newLogs = [{ id: Date.now() + Math.random(), msg, type, time: new Date() }, ...prev];
+      return newLogs.slice(0, 5); // keep max 5 logs
+    });
+  };
 
   const getHeaders = async () => {
     try {
@@ -29,19 +38,23 @@ function App({ signOut, user }) {
       setProducts(res.data.products || []);
     } catch (err) {
       console.error("Error fetching products:", err);
+      addLog("Failed to fetch products", "error");
     }
   };
 
   const addProduct = async (e) => {
     e.preventDefault();
     setLoading(true);
+    addLog("Adding product...", "info");
     try {
       const headers = await getHeaders();
       await axios.post(`${API_URL}product`, { url }, { headers });
       setUrl("");
       fetchProducts();
+      addLog("Product added successfully!", "success");
     } catch (err) {
       console.error("Error adding product:", err);
+      addLog("Failed to add product.", "error");
     }
     setLoading(false);
   };
@@ -51,18 +64,26 @@ function App({ signOut, user }) {
       const headers = await getHeaders();
       await axios.delete(`${API_URL}product/${id}`, { headers });
       fetchProducts();
+      addLog("Product removed", "info");
     } catch (err) {
       console.error("Error deleting product:", err);
+      addLog("Failed to remove product", "error");
     }
   };
 
   const checkProduct = async (id) => {
     try {
+      setCheckingId(id);
+      addLog("Checking for price updates...", "info");
       const headers = await getHeaders();
       await axios.post(`${API_URL}product/${id}/check`, {}, { headers });
       fetchProducts(); // Refresh list to get updated time and price
+      addLog("Price check complete!", "success");
     } catch (err) {
       console.error("Error checking product:", err);
+      addLog("Failed to check product", "error");
+    } finally {
+      setCheckingId(null);
     }
   };
 
@@ -79,7 +100,7 @@ function App({ signOut, user }) {
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 sm:p-8">
-      <div className="max-w-4xl mx-auto bg-white p-6 sm:p-10 rounded-xl shadow-lg">
+      <div className="max-w-7xl mx-auto bg-white p-6 sm:p-10 rounded-xl shadow-lg">
         
         <div className="flex flex-col sm:flex-row justify-between items-center mb-8 border-b pb-4">
           <h1 className="text-3xl font-extrabold text-blue-900 mb-4 sm:mb-0">eMag Price Tracker</h1>
@@ -124,40 +145,69 @@ function App({ signOut, user }) {
         </form>
 
         <h2 className="text-2xl font-bold text-gray-800 mb-6">Your Tracked Products</h2>
+        
+        {/* LOG MESSAGES UI */}
+        {logs.length > 0 && (
+          <div className="mb-6 space-y-2">
+            {logs.map((log) => (
+              <div key={log.id} className={`p-3 rounded-lg text-sm font-medium ${
+                log.type === "error" ? "bg-red-50 text-red-700 border border-red-200" :
+                log.type === "success" ? "bg-green-50 text-green-700 border border-green-200" :
+                "bg-blue-50 text-blue-700 border border-blue-200"
+              }`}>
+                {log.time.toLocaleTimeString()} - {log.msg}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="space-y-4">
           {products.map((p) => (
             <div key={p.id} className="border border-gray-200 rounded-xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white hover:border-blue-300 transition-colors shadow-sm">
-              <div className="truncate pr-4 flex-1 mb-4 sm:mb-0 w-full">
-                <a href={p.url} target="_blank" rel="noreferrer" className="text-gray-900 font-bold hover:underline hover:text-blue-600 truncate block text-lg mb-1">
-                  {p.name || p.url}
-                </a>
-                {p.name && (
-                  <a href={p.url} target="_blank" rel="noreferrer" className="text-gray-400 text-xs hover:text-blue-500 truncate block">
-                    {p.url}
+              <div className="flex gap-4 flex-1 items-start w-full">
+                {/* PRODUCT PHOTO */}
+                <div className="w-20 h-20 flex-shrink-0 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden flex items-center justify-center">
+                  {p.image ? (
+                    <img src={p.image} alt={p.name || 'product'} className="w-full h-full object-contain" />
+                  ) : (
+                    <span className="text-2xl">📦</span>
+                  )}
+                </div>
+                
+                <div className="truncate pr-4 flex-1 mb-4 sm:mb-0 w-full">
+                  <a href={p.url} target="_blank" rel="noreferrer" className="text-gray-900 font-bold hover:underline hover:text-blue-600 truncate block text-lg mb-1">
+                    {p.name || p.url}
                   </a>
-                )}
-                <div className="text-sm text-gray-500 mt-2 flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-gray-100 px-2 py-1 rounded">Last Checked Price:</span>
-                    <span className="font-bold text-gray-800 text-lg">
-                      {p.last_price != null ? `${p.last_price} Lei` : 'Waiting for first check...'}
-                    </span>
-                  </div>
-                  <div className="text-xs text-blue-500 font-medium mt-1 sm:mt-0 sm:ml-4">
-                    Next automatic check roughly around: {getNextCheckTime(p.last_check_time)}
+                  {p.name && (
+                    <a href={p.url} target="_blank" rel="noreferrer" className="text-gray-400 text-xs hover:text-blue-500 truncate block">
+                      {p.url}
+                    </a>
+                  )}
+                  <div className="text-sm text-gray-500 mt-2 flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-gray-100 px-2 py-1 rounded">Last Checked Price:</span>
+                      <span className="font-bold text-gray-800 text-lg">
+                        {p.last_price != null ? `${p.last_price} Lei` : 'Waiting for first check...'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-blue-500 font-medium mt-1 sm:mt-0 sm:ml-4">
+                      Next automatic check roughly around: {getNextCheckTime(p.last_check_time)}
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mt-4 sm:mt-0">
                 <button 
                   onClick={() => checkProduct(p.id)} 
-                  className="text-blue-600 hover:text-blue-800 font-medium px-4 py-2 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors whitespace-nowrap"
+                  disabled={checkingId === p.id}
+                  className={`${checkingId === p.id ? 'bg-gray-100 text-gray-400' : 'text-blue-600 hover:bg-blue-50 hover:text-blue-800'} font-medium px-4 py-2 border border-blue-200 rounded-lg transition-colors whitespace-nowrap`}
                 >
-                  Check Now
+                  {checkingId === p.id ? 'Checking...' : 'Check Now'}
                 </button>
                 <button 
                   onClick={() => deleteProduct(p.id)} 
-                  className="text-red-500 hover:text-red-700 font-medium px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
+                  disabled={checkingId === p.id}
+                  className="text-red-500 hover:text-red-700 font-medium px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap disabled:opacity-50"
                 >
                   Stop Tracking
                 </button>

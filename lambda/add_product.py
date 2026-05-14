@@ -33,10 +33,17 @@ def get_emag_data(url):
                 # Strip out common eMag title suffixes
                 name = title_match.group(1).replace('- eMAG.ro', '').replace('eMAG.ro', '').strip()
                 
-            return {"price": price, "name": name}
+            image = None
+            img_m = re.search(r'<meta\s+(?:[^>]*\s+)?property="og:image"\s+(?:[^>]*\s+)?content="([^"]+)"', html, re.IGNORECASE)
+            if not img_m:
+                img_m = re.search(r'<meta\s+(?:[^>]*\s+)?content="([^"]+)"\s+(?:[^>]*\s+)?property="og:image"', html, re.IGNORECASE)
+            if img_m:
+                image = img_m.group(1)
+                
+            return {"price": price, "name": name, "image": image}
     except Exception as e:
         print(f"Error fetching from {url}: {e}")
-    return {"price": None, "name": url}
+    return {"price": None, "name": url, "image": None}
 
 def handler(event, context):
     try:
@@ -61,6 +68,7 @@ def handler(event, context):
             'url': url,
             'last_price': emag_data['price'],
             'name': emag_data['name'],
+            'image': emag_data['image'],
             'last_check_time': int(time.time())
         }
         

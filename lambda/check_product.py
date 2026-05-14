@@ -31,10 +31,17 @@ def get_emag_data(url):
             if title_match:
                 name = title_match.group(1).replace('- eMAG.ro', '').replace('eMAG.ro', '').strip()
                 
-            return {"price": price, "name": name}
+            image = None
+            img_m = re.search(r'<meta\s+(?:[^>]*\s+)?property="og:image"\s+(?:[^>]*\s+)?content="([^"]+)"', html, re.IGNORECASE)
+            if not img_m:
+                img_m = re.search(r'<meta\s+(?:[^>]*\s+)?content="([^"]+)"\s+(?:[^>]*\s+)?property="og:image"', html, re.IGNORECASE)
+            if img_m:
+                image = img_m.group(1)
+                
+            return {"price": price, "name": name, "image": image}
     except Exception as e:
         print(f"Error fetching from {url}: {e}")
-    return {"price": None, "name": url}
+    return {"price": None, "name": url, "image": None}
 
 class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -57,15 +64,27 @@ def handler(event, context):
         
         if current_price is not None:
             updated_time = int(time.time())
+            
+            # Prepare optional image update
+            update_expr = "set last_price = :p, last_check_time = :t, #n = :n"
+            expr_names = {'#n': 'name'}
+            expr_vals = {':p': current_price, ':t': updated_time, ':n': emag_data['name']}
+            
+            if emag_data['image']:
+                update_expr += ", image = :img"
+                expr_vals[':img'] = emag_data['image']
+            
             table.update_item(
                 Key={'id': product_id},
-                UpdateExpression="set last_price = :p, last_check_time = :t, #n = :n",
-                ExpressionAttributeNames={'#n': 'name'},
-                ExpressionAttributeValues={':p': current_price, ':t': updated_time, ':n': emag_data['name']}
+                UpdateExpression=update_expr,
+                ExpressionAttributeNames=expr_names,
+                ExpressionAttributeValues=expr_vals
             )
             item['last_price'] = current_price
             item['last_check_time'] = updated_time
             item['name'] = emag_data['name']
+            if emag_data['image']:
+                item['image'] = emag_data['image']
 
         return {
             "statusCode": 200,
