@@ -6,10 +6,10 @@ import re
 from decimal import Decimal
 
 dynamodb = boto3.resource('dynamodb')
-sns = boto3.client('sns')
+ses = boto3.client('ses')
 
 table_name = os.environ.get('TABLE_NAME', '')
-sns_topic_arn = os.environ.get('SNS_TOPIC_ARN', '')
+sender_email = os.environ.get('SENDER_EMAIL', 'alerts@yourdomain.com')
 table = dynamodb.Table(table_name)
 
 def get_emag_price(url):
@@ -58,22 +58,31 @@ def handler(event, context):
             )
             
             # Send Notification if the current price is less or equal to the target price
-            if current_price <= target_price:
+            if current_price <= target_price and email:
                 message = f"Good news! The product you tracked has dropped to {current_price} Lei.\n\nLink: {url}"
                 
-                # NOTE: For SNS to send emails directly to a user's address dynamically like this requires 
-                # them to be subscribed and confirmed on the SNS Topic. 
-                # (AWS SES is usually used for direct outbound transactional emails).
                 try:
-                    sns.publish(
-                        TopicArn=sns_topic_arn,
-                        Subject="eMag Price Drop Alert!",
-                        Message=message,
-                        # A real production environment would route this differently, but we push to the topic.
+                    ses.send_email(
+                        Source=sender_email,
+                        Destination={
+                            'ToAddresses': [email]
+                        },
+                        Message={
+                            'Subject': {
+                                'Data': 'eMag Price Drop Alert!',
+                                'Charset': 'UTF-8'
+                            },
+                            'Body': {
+                                'Text': {
+                                    'Data': message,
+                                    'Charset': 'UTF-8'
+                                }
+                            }
+                        }
                     )
-                    print(f"Notification sent regarding {item['id']}")
-                except Exception as sns_err:
-                    print("Failed to publish to SNS:", sns_err)
+                    print(f"Notification sent to {email} regarding {item['id']}")
+                except Exception as ses_err:
+                    print(f"Failed to send email to {email}:", ses_err)
 
     return {
         "statusCode": 200,

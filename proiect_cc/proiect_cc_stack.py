@@ -10,6 +10,7 @@ from aws_cdk import (
     aws_sns as sns,
     aws_events as events,
     aws_events_targets as targets,
+    aws_iam as iam,
 )
 from constructs import Construct
 
@@ -48,10 +49,9 @@ class ProiectCcStack(Stack):
             removal_policy=RemovalPolicy.DESTROY
         )
 
-        # 4. Amazon SNS for price drops
-        sns_topic = sns.Topic(self, "PriceDropTopic",
-            display_name="Price Drop Notifications"
-        )
+        # 4. Email Sender (SES requires verifying this email in the AWS Console)
+        # You will need to change this to the email address you verify in AWS SES
+        verified_sender_email = "alerts@yourdomain.com"
 
         # 5. Lambda Functions
         # Shared Lambda runtime and code directory
@@ -82,7 +82,7 @@ class ProiectCcStack(Stack):
             handler="scraper.handler",
             environment={
                 "TABLE_NAME": products_table.table_name,
-                "SNS_TOPIC_ARN": sns_topic.topic_arn
+                "SENDER_EMAIL": verified_sender_email
             },
             timeout=Duration.minutes(5),
             **lambda_kwargs
@@ -93,7 +93,12 @@ class ProiectCcStack(Stack):
         products_table.grant_read_data(get_products_lambda)
         products_table.grant_read_write_data(delete_product_lambda)
         products_table.grant_read_write_data(scraper_lambda)
-        sns_topic.grant_publish(scraper_lambda)
+        
+        # Grant SES SendEmail permission to Scraper Lambda
+        scraper_lambda.add_to_role_policy(iam.PolicyStatement(
+            actions=["ses:SendEmail", "ses:SendRawEmail"],
+            resources=["*"]
+        ))
 
         # 6. EventBridge Rule (trigger scraper every N hours, e.g., 6 hours)
         rule = events.Rule(self, "ScraperScheduleRule",
