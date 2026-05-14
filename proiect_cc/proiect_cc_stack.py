@@ -115,21 +115,21 @@ class ProiectCcStack(Stack):
             cognito_user_pools=[user_pool]
         )
 
-        auth_options = apigw.MethodOptions(
-            authorizer=authorizer,
-            authorization_type=apigw.AuthorizationType.COGNITO
-        )
+        auth_kwargs = {
+            "authorizer": authorizer,
+            "authorization_type": apigw.AuthorizationType.COGNITO
+        }
 
         # Routes
         # POST /product
         product_resource = api.root.add_resource("product")
-        product_resource.add_method("POST", apigw.LambdaIntegration(add_product_lambda), **auth_options)
+        product_resource.add_method("POST", apigw.LambdaIntegration(add_product_lambda), **auth_kwargs)
         
         # DELETE /product/{id}
         product_id_resource = product_resource.add_resource("{id}")
-        product_id_resource.add_method("DELETE", apigw.LambdaIntegration(delete_product_lambda), **auth_options)
+        product_id_resource.add_method("DELETE", apigw.LambdaIntegration(delete_product_lambda), **auth_kwargs)
 
         # GET /products
         products_resource = api.root.add_resource("products")
-        products_resource.add_method("GET", apigw.LambdaIntegration(get_products_lambda), **auth_options)
+        products_resource.add_method("GET", apigw.LambdaIntegration(get_products_lambda), **auth_kwargs)
 
