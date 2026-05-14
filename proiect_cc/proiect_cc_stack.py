@@ -12,6 +12,8 @@ from aws_cdk import (
     aws_events as events,
     aws_events_targets as targets,
     aws_iam as iam,
+    aws_cloudfront as cloudfront,
+    aws_cloudfront_origins as origins,
 )
 from constructs import Construct
 
@@ -139,9 +141,18 @@ class ProiectCcStack(Stack):
         products_resource = api.root.add_resource("products")
         products_resource.add_method("GET", apigw.LambdaIntegration(get_products_lambda), **auth_kwargs)
 
-        # 8. Outputs for the Frontend
+        # 8. CloudFront Distribution (HTTPS)
+        # Using S3 Static Website Endpoint as the origin
+        distribution = cloudfront.Distribution(self, "WebsiteDistribution",
+            default_behavior=cloudfront.BehaviorOptions(
+                origin=origins.HttpOrigin(website_bucket.bucket_website_domain_name),
+                viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS
+            )
+        )
+
+        # 9. Outputs for the Frontend
         CfnOutput(self, "WebsiteBucketName", value=website_bucket.bucket_name)
-        CfnOutput(self, "WebsiteURL", value=website_bucket.bucket_website_url)
+        CfnOutput(self, "WebsiteURL", value=f"https://{distribution.distribution_domain_name}")
         CfnOutput(self, "UserPoolId", value=user_pool.user_pool_id)
         CfnOutput(self, "UserPoolClientId", value=user_pool_client.user_pool_client_id)
         CfnOutput(self, "ApiUrl", value=api.url)
