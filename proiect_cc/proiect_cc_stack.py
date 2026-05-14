@@ -43,7 +43,11 @@ class ProiectCcStack(Stack):
             auto_verify=cognito.AutoVerifiedAttrs(email=True) # Tells Cognito to actually send the email verification code
         )
         user_pool_client = user_pool.add_client("AppClient",
-            auth_flows=cognito.AuthFlow(admin_user_password=True, user_password=True)
+            auth_flows=cognito.AuthFlow(
+                admin_user_password=True, 
+                user_password=True,
+                user_srp=True # Required by AWS Amplify for secure password transmission
+            )
         )
 
         # 3. DynamoDB Table for saved products
