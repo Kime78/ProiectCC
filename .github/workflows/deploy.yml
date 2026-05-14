@@ -41,5 +41,33 @@ jobs:
         if: github.event_name == 'pull_request'
 
       - name: CDK Deploy
-        run: cdk deploy --require-approval never
+        run: cdk deploy --require-approval never --outputs-file cdk-outputs.json
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+      - name: Parse CDK Outputs and Build Frontend
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          # Parse the API URL and S3 Bucket Name dynamically from the CDK output
+          API_URL=$(jq -r '.ProiectCcStack.ApiUrl' cdk-outputs.json)
+          S3_BUCKET=$(jq -r '.ProiectCcStack.WebsiteBucketName' cdk-outputs.json)
+          WEBSITE_URL=$(jq -r '.ProiectCcStack.WebsiteURL' cdk-outputs.json)
+          
+          echo "==== CDK Outputs ===="
+          echo "API URL: $API_URL"
+          echo "S3 Bucket: $S3_BUCKET"
+          echo "Live Website: $WEBSITE_URL"
+          
+          cd frontend
+          npm install
+          
+          # Inject the API URL into Vite build variables
+          echo "VITE_API_URL=$API_URL" > .env
+          npm run build
+          
+          # Sync to S3
+          aws s3 sync dist/ s3://$S3_BUCKET --delete
+          
+          echo "=========================================="
+          echo "✅ DEPLOYMENT COMPLETE"
+          echo "🌍 Your React app is live at: $WEBSITE_URL"
+          echo "=========================================="

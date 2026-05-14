@@ -2,6 +2,7 @@ from aws_cdk import (
     Stack,
     RemovalPolicy,
     Duration,
+    CfnOutput,
     aws_s3 as s3,
     aws_cognito as cognito,
     aws_dynamodb as dynamodb,
@@ -137,4 +138,11 @@ class ProiectCcStack(Stack):
         # GET /products
         products_resource = api.root.add_resource("products")
         products_resource.add_method("GET", apigw.LambdaIntegration(get_products_lambda), **auth_kwargs)
+
+        # 8. Outputs for the Frontend
+        CfnOutput(self, "WebsiteBucketName", value=website_bucket.bucket_name)
+        CfnOutput(self, "WebsiteURL", value=website_bucket.bucket_website_url)
+        CfnOutput(self, "UserPoolId", value=user_pool.user_pool_id)
+        CfnOutput(self, "UserPoolClientId", value=user_pool_client.user_pool_client_id)
+        CfnOutput(self, "ApiUrl", value=api.url)
 
