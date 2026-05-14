@@ -56,6 +56,23 @@ function App({ signOut, user }) {
     }
   };
 
+  const checkProduct = async (id) => {
+    try {
+      const headers = await getHeaders();
+      await axios.post(`${API_URL}product/${id}/check`, {}, { headers });
+      fetchProducts(); // Refresh list to get updated time and price
+    } catch (err) {
+      console.error("Error checking product:", err);
+    }
+  };
+
+  const getNextCheckTime = (lastCheckStamp) => {
+    if (!lastCheckStamp) return "Waiting...";
+    // Assuming EventBridge runs every 6 hours
+    const nextTime = new Date((lastCheckStamp + 6 * 3600) * 1000);
+    return nextTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   useEffect(() => {
     fetchProducts();
   }, []);
@@ -114,19 +131,32 @@ function App({ signOut, user }) {
                 <a href={p.url} target="_blank" rel="noreferrer" className="text-blue-600 font-medium hover:underline hover:text-blue-800 truncate block">
                   {p.url}
                 </a>
-                <div className="text-sm text-gray-500 mt-2 flex items-center gap-2">
-                  <span className="bg-gray-100 px-2 py-1 rounded">Last Checked Price:</span>
-                  <span className="font-bold text-gray-800 text-lg">
-                    {p.last_price != null ? `${p.last_price} Lei` : 'Waiting for first check...'}
-                  </span>
+                <div className="text-sm text-gray-500 mt-2 flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-gray-100 px-2 py-1 rounded">Last Checked Price:</span>
+                    <span className="font-bold text-gray-800 text-lg">
+                      {p.last_price != null ? `${p.last_price} Lei` : 'Waiting for first check...'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-blue-500 font-medium mt-1 sm:mt-0 sm:ml-4">
+                    Next automatic check roughly around: {getNextCheckTime(p.last_check_time)}
+                  </div>
                 </div>
               </div>
-              <button 
-                onClick={() => deleteProduct(p.id)} 
-                className="text-red-500 hover:text-red-700 font-medium px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap w-full sm:w-auto"
-              >
-                Stop Tracking
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <button 
+                  onClick={() => checkProduct(p.id)} 
+                  className="text-blue-600 hover:text-blue-800 font-medium px-4 py-2 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors whitespace-nowrap"
+                >
+                  Check Now
+                </button>
+                <button 
+                  onClick={() => deleteProduct(p.id)} 
+                  className="text-red-500 hover:text-red-700 font-medium px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
+                >
+                  Stop Tracking
+                </button>
+              </div>
             </div>
           ))}
           {products.length === 0 && (

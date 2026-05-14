@@ -3,6 +3,7 @@ import os
 import boto3
 import urllib.request
 import re
+import time
 from decimal import Decimal
 
 dynamodb = boto3.resource('dynamodb')
@@ -40,6 +41,7 @@ def handler(event, context):
     response = table.scan()
     items = response.get('Items', [])
     
+    
     for item in items:
         url = item.get('url')
         last_price = item.get('last_price')
@@ -51,40 +53,39 @@ def handler(event, context):
             print(f"Price found for {url}: {current_price}")
             
             # Send Notification if the current price is strictly less than the last known price
-            # (or if we are just logging the first time, skip sending an email)
             if last_price and current_price < last_price and email:
                 message = f"Good news! The product you tracked has dropped from {last_price} to {current_price} Lei.\n\nLink: {url}"
                 
                 try:
                     ses.send_email(
                         Source=sender_email,
-                        Destination={
-                            'ToAddresses': [email]
-                        },
+                        Destination={'ToAddresses': [email]},
                         Message={
-                            'Subject': {
-                                'Data': 'eMag Price Drop Alert!',
-                                'Charset': 'UTF-8'
-                            },
-                            'Body': {
-                                'Text': {
-                                    'Data': message,
-                                    'Charset': 'UTF-8'
-                                }
-                            }
+                            'Subject': {'Data': 'eMag Price Drop Alert!', 'Charset': 'UTF-8'},
+                            'Body': {'Text': {'Data': message, 'Charset': 'UTF-8'}}
                         }
                     )
-                    print(f"Notification sent to {email} regarding {item['id']}")
                 except Exception as ses_err:
                     print(f"Failed to send email to {email}:", ses_err)
             
-            # Always update the last recorded price in DynamoDB to the current price so we don't spam 
-            # if it stays low, and so we have a reference for the next cycle.
             table.update_item(
                 Key={'id': item['id']},
-                UpdateExpression="set last_price = :p",
-                ExpressionAttributeValues={':p': current_price}
+                UpdateExpression="set last_price = :p, last_check_time = :t",
+                ExpressionAttributeValues={':p': current_price, ':t': int(time.time())}
             )
+
+    # Email the admin about the automatic check
+    try:
+        ses.send_email(
+            Source=sender_email,
+            Destination={'ToAddresses': ['mihalachemihai824@gmail.com']},
+            Message={
+                'Subject': {'Data': 'eMag Scraper Automatic Check Completed', 'Charset': 'UTF-8'},
+                'Body': {'Text': {'Data': f'The scraper successfully ran an automatic check on {len(items)} tracked products.', 'Charset': 'UTF-8'}}
+            }
+        )
+    except Exception as e:
+        print("Failed to send admin email:", e)
 
     return {
         "statusCode": 200,

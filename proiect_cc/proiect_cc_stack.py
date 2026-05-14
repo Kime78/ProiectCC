@@ -80,6 +80,12 @@ class ProiectCcStack(Stack):
             **lambda_kwargs
         )
 
+        check_product_lambda = _lambda.Function(self, "CheckProductLambda",
+            handler="check_product.handler",
+            environment={"TABLE_NAME": products_table.table_name},
+            **lambda_kwargs
+        )
+
         delete_product_lambda = _lambda.Function(self, "DeleteProductLambda",
             handler="delete_product.handler",
             environment={"TABLE_NAME": products_table.table_name},
@@ -99,6 +105,7 @@ class ProiectCcStack(Stack):
         # Permissions
         products_table.grant_read_write_data(add_product_lambda)
         products_table.grant_read_data(get_products_lambda)
+        products_table.grant_read_write_data(check_product_lambda)
         products_table.grant_read_write_data(delete_product_lambda)
         products_table.grant_read_write_data(scraper_lambda)
         
@@ -141,6 +148,10 @@ class ProiectCcStack(Stack):
         # DELETE /product/{id}
         product_id_resource = product_resource.add_resource("{id}")
         product_id_resource.add_method("DELETE", apigw.LambdaIntegration(delete_product_lambda), **auth_kwargs)
+
+        # POST /product/{id}/check
+        product_check_resource = product_id_resource.add_resource("check")
+        product_check_resource.add_method("POST", apigw.LambdaIntegration(check_product_lambda), **auth_kwargs)
 
         # GET /products
         products_resource = api.root.add_resource("products")
