@@ -42,7 +42,7 @@ def handler(event, context):
     
     for item in items:
         url = item.get('url')
-        target_price = item.get('target_price', Decimal('0'))
+        last_price = item.get('last_price')
         email = item.get('email')
         
         current_price = get_emag_price(url)
@@ -50,16 +50,10 @@ def handler(event, context):
         if current_price is not None:
             print(f"Price found for {url}: {current_price}")
             
-            # Update the last recorded price in DynamoDB
-            table.update_item(
-                Key={'id': item['id']},
-                UpdateExpression="set last_price = :p",
-                ExpressionAttributeValues={':p': current_price}
-            )
-            
-            # Send Notification if the current price is less or equal to the target price
-            if current_price <= target_price and email:
-                message = f"Good news! The product you tracked has dropped to {current_price} Lei.\n\nLink: {url}"
+            # Send Notification if the current price is strictly less than the last known price
+            # (or if we are just logging the first time, skip sending an email)
+            if last_price and current_price < last_price and email:
+                message = f"Good news! The product you tracked has dropped from {last_price} to {current_price} Lei.\n\nLink: {url}"
                 
                 try:
                     ses.send_email(
@@ -83,6 +77,14 @@ def handler(event, context):
                     print(f"Notification sent to {email} regarding {item['id']}")
                 except Exception as ses_err:
                     print(f"Failed to send email to {email}:", ses_err)
+            
+            # Always update the last recorded price in DynamoDB to the current price so we don't spam 
+            # if it stays low, and so we have a reference for the next cycle.
+            table.update_item(
+                Key={'id': item['id']},
+                UpdateExpression="set last_price = :p",
+                ExpressionAttributeValues={':p': current_price}
+            )
 
     return {
         "statusCode": 200,

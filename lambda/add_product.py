@@ -12,10 +12,9 @@ def handler(event, context):
     try:
         body = json.loads(event.get('body', '{}'))
         url = body.get('url')
-        target_price = body.get('target_price')
         
-        if not url or not target_price:
-            return {"statusCode": 400, "body": json.dumps({"error": "url and target_price are required"})}
+        if not url:
+            return {"statusCode": 400, "body": json.dumps({"error": "url is required"})}
             
         # Get user details from the Cognito Authorizer context
         claims = event.get('requestContext', {}).get('authorizer', {}).get('claims', {})
@@ -28,15 +27,11 @@ def handler(event, context):
             'user_id': user_id,
             'email': email,
             'url': url,
-            'target_price': Decimal(str(target_price)),
-            'last_price': Decimal('0')
+            # Initially we don't know the price. The scraper will find it.
+            'last_price': None
         }
         
         table.put_item(Item=item)
-        
-        # Convert Decimals to float/str before returning JSON
-        item['target_price'] = float(item['target_price'])
-        item['last_price'] = float(item['last_price'])
         
         return {
             "statusCode": 200,
