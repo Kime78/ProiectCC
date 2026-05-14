@@ -39,7 +39,8 @@ class ProiectCcStack(Stack):
         # 2. Amazon Cognito for Accounts
         user_pool = cognito.UserPool(self, "UserPool",
             self_sign_up_enabled=True,
-            sign_in_aliases=cognito.SignInAliases(email=True)
+            sign_in_aliases=cognito.SignInAliases(email=True),
+            auto_verify=cognito.AutoVerifiedAttrs(email=True) # Tells Cognito to actually send the email verification code
         )
         user_pool_client = user_pool.add_client("AppClient",
             auth_flows=cognito.AuthFlow(admin_user_password=True, user_password=True)
@@ -145,7 +146,10 @@ class ProiectCcStack(Stack):
         # Using S3 Static Website Endpoint as the origin
         distribution = cloudfront.Distribution(self, "WebsiteDistribution",
             default_behavior=cloudfront.BehaviorOptions(
-                origin=origins.HttpOrigin(website_bucket.bucket_website_domain_name),
+                origin=origins.HttpOrigin(
+                    website_bucket.bucket_website_domain_name,
+                    protocol_policy=cloudfront.OriginProtocolPolicy.HTTP_ONLY
+                ),
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS
             )
         )
