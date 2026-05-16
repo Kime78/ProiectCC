@@ -257,15 +257,15 @@ function App({ signOut, user }) {
 
               {/* ACTION BUTTONS & PRICE */}
               <div className="flex flex-col sm:items-end justify-between self-stretch mt-4 sm:mt-0 w-full sm:w-auto border-t sm:border-t-0 pt-4 sm:pt-0">
-                    <div className="flex items-center gap-2">
-                      <span className="bg-gray-100 px-2 py-1 rounded">Last Checked Price:</span>
-                      <span className="font-bold text-gray-800 text-lg">
-                        {p.last_price != null ? `${p.last_price} Lei` : 'Waiting for first check...'}
-                      </span>
-                    </div>
-                    <div className="text-xs text-blue-500 font-medium mt-1 sm:mt-0 sm:ml-4">
-                      Next automatic check roughly around: {getNextCheckTime(p.last_check_time)}
-                    </div>
+                <div className="flex flex-col sm:items-end">
+                  <div className="flex items-center justify-end w-full mb-2">
+                    <span className="text-sm text-gray-500 mr-2">Last Checked Price:</span>
+                    <span className="font-bold text-gray-800 text-lg">
+                      {p.last_price != null ? `${p.last_price} Lei` : 'Waiting for check...'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-blue-500 font-medium mt-1 sm:mt-0 sm:ml-4">
+                    Next automatic check roughly around: {getNextCheckTime(p.last_check_time)}
                   </div>
                   <div className="text-xs text-gray-500 mt-2">
                     {p.last_check_time ? (
@@ -281,22 +281,23 @@ function App({ signOut, user }) {
                     </div>
                   )}
                 </div>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mt-4 sm:mt-0">
-                <button 
-                  onClick={() => checkProduct(p.id)} 
-                  disabled={isChecking}
-                  className={`${isChecking ? 'bg-gray-100 text-gray-400' : 'text-blue-600 hover:bg-blue-50 hover:text-blue-800'} font-medium px-4 py-2 border border-blue-200 rounded-lg transition-colors whitespace-nowrap`}
-                >
-                  {isChecking ? 'Checking...' : 'Check Now'}
-                </button>
-                <button 
-                  onClick={() => deleteProduct(p.id)} 
-                  disabled={isChecking}
-                  className="text-red-500 hover:text-red-700 font-medium px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap disabled:opacity-50"
-                >
-                  Stop Tracking
-                </button>
+
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mt-4 sm:mt-0">
+                  <button 
+                    onClick={() => checkProduct(p.id)} 
+                    disabled={isChecking}
+                    className={`${isChecking ? 'bg-gray-100 text-gray-400' : 'text-blue-600 hover:bg-blue-50 hover:text-blue-800'} font-medium px-4 py-2 border border-blue-200 rounded-lg transition-colors whitespace-nowrap`}
+                  >
+                    {isChecking ? 'Checking...' : 'Check Now'}
+                  </button>
+                  <button 
+                    onClick={() => deleteProduct(p.id)} 
+                    disabled={isChecking}
+                    className="text-red-500 hover:text-red-700 font-medium px-4 py-2 border border-red-200 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap disabled:opacity-50"
+                  >
+                    Stop Tracking
+                  </button>
+                </div>
               </div>
             </div>
           );
