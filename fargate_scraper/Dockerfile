@@ -1,6 +1,9 @@
 # Use the official Microsoft Playwright image which includes Chromium
 FROM mcr.microsoft.com/playwright/python:v1.42.0-jammy
 
+# Ensure stdout and stderr are unbuffered so logs show up immediately in CloudWatch
+ENV PYTHONUNBUFFERED=1
+
 # Set working directory
 WORKDIR /app
 
