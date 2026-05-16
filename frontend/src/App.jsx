@@ -105,6 +105,22 @@ function App({ signOut, user }) {
     fetchProducts();
   }, []);
 
+  // Option 1: Polling mechanism
+  useEffect(() => {
+    // Check if any product is currently being scraped (price is null or it's a specific placeholder)
+    const isScraping = products.some(p => p.price === null || p.name === "Adding product..." || checkingId === p.id);
+
+    let interval;
+    if (isScraping) {
+      // Poll every 5 seconds if a Fargate task is running
+      interval = setInterval(() => {
+        fetchProducts();
+      }, 5000);
+    }
+    
+    return () => clearInterval(interval);
+  }, [products, checkingId]);
+
   return (
     <div className="min-h-screen bg-gray-100 p-4 sm:p-8">
       <div className="max-w-7xl mx-auto bg-white p-6 sm:p-10 rounded-xl shadow-lg">
