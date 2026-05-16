@@ -31,6 +31,14 @@ def parse_decimal(raw_value):
         return None
 
 def extract_price(page):
+    # Try generic demo shop first
+    try:
+        price_el = page.locator("#product-price")
+        if price_el.count() > 0:
+            return parse_decimal(price_el.inner_text())
+    except Exception:
+        pass
+
     patterns = [
         r'product-new-price[^>]*>\s*([0-9\.,\s]+)\s*<sup>([0-9]{2})</sup>',
         r'"current"\s*:\s*([0-9\.,]+)',
@@ -50,6 +58,13 @@ def extract_price(page):
 
 def extract_title(page, fallback_url):
     try:
+        title_el = page.locator("#product-title")
+        if title_el.count() > 0:
+            return title_el.inner_text().strip()
+    except Exception:
+        pass
+
+    try:
         title = page.title()
         if title:
             return re.sub(r'\s+', ' ', title.replace('- eMAG.ro', '').replace('eMAG.ro', '')).strip()
@@ -58,6 +73,13 @@ def extract_title(page, fallback_url):
     return fallback_url
 
 def extract_image(page):
+    try:
+        img_el = page.locator("#product-image")
+        if img_el.count() > 0:
+            return img_el.get_attribute("src")
+    except Exception:
+        pass
+        
     try:
         # og:image
         meta = page.query_selector("meta[property='og:image']")
@@ -136,7 +158,7 @@ def get_all_items():
         scan_kwargs['ExclusiveStartKey'] = last_key
     return items
 
-def update_product(item_id, current_price, product_name, image=None):
+def update_product(item_id, current_price, product_name, image=None, existing_history=None):
     update_expression = "SET last_price = :p, last_check_time = :t, #n = :n"
     expression_values = {
         ':p': current_price,
@@ -144,9 +166,20 @@ def update_product(item_id, current_price, product_name, image=None):
         ':n': product_name
     }
     expression_names = {'#n': 'name'}
+    
     if image:
         update_expression += ", image = :i"
         expression_values[':i'] = image
+
+    if current_price is not None:
+        history = existing_history or []
+        history.append({
+            "timestamp": int(time.time()),
+            "price": str(current_price)
+        })
+        update_expression += ", price_history = :ph"
+        expression_values[':ph'] = history
+
     table.update_item(
         Key={'id': item_id},
         UpdateExpression=update_expression,
@@ -169,6 +202,7 @@ def run():
             
             email = item.get('email')
             last_price = item.get('last_price')
+            existing_history = item.get('price_history', [])
             
             emag_data = get_emag_data(url)
             current_price = emag_data['price']
@@ -186,8 +220,8 @@ def run():
                 send_price_alert(email, product_name, last_price, current_price, url)
                 alerts_sent += 1
                 
-            if current_price != last_price or item.get('name') != product_name:
-                update_product(item['id'], current_price, product_name, image)
+            # Always update so we get the graph history
+            update_product(item['id'], current_price, product_name, image, existing_history)
             
             processed += 1
             

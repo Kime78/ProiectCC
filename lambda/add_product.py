@@ -60,7 +60,8 @@ def handler(event, context):
             'last_price': None,
             'name': "Adding product...",
             'image': None,
-            'last_check_time': int(time.time())
+            'last_check_time': int(time.time()),
+            'price_history': []
         }
         
         table.put_item(Item=item)

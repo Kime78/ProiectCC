@@ -2,6 +2,15 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Authenticator } from '@aws-amplify/ui-react';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
 
 // Environment variables populated by CI/CD
 const API_URL = import.meta.env.VITE_API_URL || "";
@@ -214,6 +223,40 @@ function App({ signOut, user }) {
                     </a>
                   )}
                   <div className="text-sm text-gray-500 mt-2 flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                    <span className="font-semibold px-2 py-1 bg-gray-100 rounded text-gray-600">
+                      ID: {p.id.split("-")[0]}...
+                    </span>
+                    <span className="text-xs">
+                      🔄 Checked: {getNextCheckTime(p.last_check_time)}
+                    </span>
+                  </div>
+                  
+                  {p.price_history && p.price_history.length > 0 && (
+                    <div className="mt-4 h-32 w-full max-w-sm">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={p.price_history.map(h => ({
+                          time: new Date(h.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                          price: parseFloat(h.price)
+                        }))}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                          <XAxis dataKey="time" tick={{fontSize: 10}} tickLine={false} axisLine={false} />
+                          <YAxis hide domain={['auto', 'auto']} />
+                          <Tooltip 
+                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                            labelStyle={{ color: '#6B7280', fontSize: '12px' }}
+                            itemStyle={{ color: '#2563EB', fontWeight: 'bold' }}
+                          />
+                          <Line type="monotone" dataKey="price" stroke="#3B82F6" strokeWidth={2} dot={{ r: 3, fill: '#3B82F6', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+
+                </div>
+              </div>
+
+              {/* ACTION BUTTONS & PRICE */}
+              <div className="flex flex-col sm:items-end justify-between self-stretch mt-4 sm:mt-0 w-full sm:w-auto border-t sm:border-t-0 pt-4 sm:pt-0">
                     <div className="flex items-center gap-2">
                       <span className="bg-gray-100 px-2 py-1 rounded">Last Checked Price:</span>
                       <span className="font-bold text-gray-800 text-lg">
