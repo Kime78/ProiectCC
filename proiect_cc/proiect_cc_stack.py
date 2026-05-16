@@ -14,6 +14,8 @@ from aws_cdk import (
     aws_iam as iam,
     aws_cloudfront as cloudfront,
     aws_cloudfront_origins as origins,
+    aws_ecs as ecs,
+    aws_ec2 as ec2,
 )
 from constructs import Construct
 
@@ -92,14 +94,22 @@ class ProiectCcStack(Stack):
             **lambda_kwargs
         )
 
-        scraper_lambda = _lambda.Function(self, "ScraperLambda",
-            handler="scraper.handler",
+        # 5.5 Fargate Scraper Task
+        vpc = ec2.Vpc(self, "ScraperVpc", max_azs=2, nat_gateways=1)
+        cluster = ecs.Cluster(self, "ScraperCluster", vpc=vpc)
+
+        task_definition = ecs.FargateTaskDefinition(self, "ScraperTaskDef",
+            memory_limit_mib=2048,
+            cpu=1024
+        )
+
+        container = task_definition.add_container("ScraperContainer",
+            image=ecs.ContainerImage.from_asset("fargate_scraper"),
+            logging=ecs.LogDrivers.aws_logs(stream_prefix="Scraper"),
             environment={
                 "TABLE_NAME": products_table.table_name,
                 "SENDER_EMAIL": verified_sender_email
-            },
-            timeout=Duration.minutes(5),
-            **lambda_kwargs
+            }
         )
 
         # Permissions
@@ -107,10 +117,10 @@ class ProiectCcStack(Stack):
         products_table.grant_read_data(get_products_lambda)
         products_table.grant_read_write_data(check_product_lambda)
         products_table.grant_read_write_data(delete_product_lambda)
-        products_table.grant_read_write_data(scraper_lambda)
+        products_table.grant_read_write_data(task_definition.task_role)
         
-        # Grant SES SendEmail permission to Scraper Lambda
-        scraper_lambda.add_to_role_policy(iam.PolicyStatement(
+        # Grant SES SendEmail permission to Scraper Task
+        task_definition.task_role.add_to_policy(iam.PolicyStatement(
             actions=["ses:SendEmail", "ses:SendRawEmail"],
             resources=["*"]
         ))
@@ -119,7 +129,11 @@ class ProiectCcStack(Stack):
         rule = events.Rule(self, "ScraperScheduleRule",
             schedule=events.Schedule.rate(Duration.hours(6))
         )
-        rule.add_target(targets.LambdaFunction(scraper_lambda))
+        rule.add_target(targets.EcsTask(
+            cluster=cluster,
+            task_definition=task_definition,
+            subnet_selection=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS)
+        ))
 
         # 7. API Gateway
         api = apigw.RestApi(self, "ProductsApi",
