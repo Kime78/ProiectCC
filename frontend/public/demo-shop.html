@@ -3,50 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Demo Shop</title>
+    <title>TechHaven Demo Shop</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #f9f9f9; padding: 2rem; display: flex; justify-content: center; }
-        .product-card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px; text-align: center; }
-        .product-image { width: 100%; max-height: 250px; object-fit: contain; margin-bottom: 1rem; }
-        .product-title { font-size: 1.5rem; color: #333; margin-bottom: 0.5rem; }
-        .product-price-container { font-size: 2rem; color: #e63946; font-weight: bold; margin-bottom: 1rem; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f3f4f6; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; }
+        header { background: #1f2937; color: white; width: 100%; padding: 1.5rem; text-align: center; font-size: 1.5rem; font-weight: bold; }
+        .container { max-width: 1000px; width: 100%; padding: 2rem; }
+        
+        /* Grid for Catalog */
+        .catalog-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; }
+        .catalog-card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; cursor: pointer; transition: transform 0.2s; text-decoration: none; color: inherit; display: flex; flex-direction: column; }
+        .catalog-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px rgba(0,0,0,0.1); }
+        .catalog-image { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; margin-bottom: 1rem; }
+        .catalog-title { font-size: 1.25rem; color: #111827; margin-bottom: 0.5rem; font-weight: 600; }
+        .catalog-price { font-size: 1.1rem; color: #6b7280; }
+        
+        /* Single Product View */
+        .product-view { display: none; background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; text-align: center; }
+        .product-image { width: 100%; max-height: 400px; object-fit: contain; margin-bottom: 1.5rem; }
+        .product-title { font-size: 2rem; color: #111827; margin-bottom: 0.5rem; font-weight: 700; }
+        .product-price-container { font-size: 2.5rem; color: #e63946; font-weight: bold; margin-bottom: 1.5rem; }
+        .back-button { background: #3b82f6; color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block; transition: background 0.2s; }
+        .back-button:hover { background: #2563eb; }
+        .fluctuation-warning { margin-top: 10px; font-size: 0.9rem; color: #9ca3af; }
     </style>
 </head>
 <body>
-    <div class="product-card">
-        <img id="product-image" class="product-image" src="https://via.placeholder.com/400x300?text=Product+Image" alt="Product">
-        <h1 id="product-title" class="product-title">Loading...</h1>
-        <div class="product-price-container">
-            <span id="product-price">...</span> Lei
+    <header>TechHaven Demo Shop</header>
+    <div class="container">
+        <!-- Catalog View -->
+        <div id="catalog-view" class="catalog-grid"></div>
+
+        <!-- Single Product View -->
+        <div id="product-view" class="product-view">
+            <img id="product-image" class="product-image" src="" alt="Product">
+            <h1 id="product-title" class="product-title">Loading...</h1>
+            <div class="product-price-container">
+                <span id="product-price">...</span> Lei
+            </div>
+            <a href="demo-shop.html" class="back-button">← Back to Catalog</a>
+            <div class="fluctuation-warning">Prices on this store fluctuate randomly on every page load to simulate live market changes.</div>
         </div>
     </div>
 
     <script>
-        // Use URL query params to dynamically render a mock product
-        // Example: ?name=MacBook&price=4999.99
-        function renderProduct() {
-            const params = new URLSearchParams(window.location.search);
-            const name = params.get('name') || "Demo Mechanical Keyboard";
-            
-            // Generate a random price between base_price and base_price * 1.5 if just randomizing
-            // or take directly from params
-            let price = params.get('price');
-            if(!price) {
-                // fake fluctuating price between 200 and 300
-                price = (200 + Math.random() * 100).toFixed(2);
+        // Fake products database
+        const inventory = [
+            {
+                id: "p1",
+                name: "Razer BlackWidow Mechanical Keyboard",
+                basePrice: 650,
+                image: "https://images.unsplash.com/photo-1595225476474-87563907a212?auto=format&fit=crop&w=600&q=80"
+            },
+            {
+                id: "p2",
+                name: "Sony WH-1000XM4 Wireless Headphones",
+                basePrice: 1400,
+                image: "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?auto=format&fit=crop&w=600&q=80"
+            },
+            {
+                id: "p3",
+                name: "Apple MacBook Pro 14-inch (M2)",
+                basePrice: 9500,
+                image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=600&q=80"
+            },
+            {
+                id: "p4",
+                name: "Samsung 27-inch 4K UHD Monitor",
+                basePrice: 1800,
+                image: "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=600&q=80"
+            },
+            {
+                id: "p5",
+                name: "Logitech MX Master 3 Mouse",
+                basePrice: 450,
+                image: "https://images.unsplash.com/photo-1527814050087-3c7debb49c30?auto=format&fit=crop&w=600&q=80"
             }
+        ];
 
-            document.title = name + " - Demo Shop";
-            document.getElementById('product-title').innerText = name;
-            document.getElementById('product-price').innerText = price;
-            
-            const image = params.get('image');
-            if (image) {
-                document.getElementById('product-image').src = decodeURIComponent(image);
+        // Generate a random price fluctuating +/- 15% from base price
+        function generateFluctuatingPrice(basePrice) {
+            const fluctuation = (Math.random() * 0.3) - 0.15; // -0.15 to +0.15
+            const finalPrice = basePrice * (1 + fluctuation);
+            return finalPrice.toFixed(2);
+        }
+
+        // Initialize Page
+        function init() {
+            const params = new URLSearchParams(window.location.search);
+            const productId = params.get('id');
+
+            if (productId) {
+                // Show Single Product View
+                document.getElementById('catalog-view').style.display = 'none';
+                document.getElementById('product-view').style.display = 'block';
+
+                const product = inventory.find(p => p.id === productId);
+                if (product) {
+                    // Generate new random price ON EVERY LOAD
+                    const currentPrice = generateFluctuatingPrice(product.basePrice);
+                    
+                    document.title = product.name + " - TechHaven";
+                    document.getElementById('product-title').innerText = product.name;
+                    document.getElementById('product-price').innerText = currentPrice;
+                    document.getElementById('product-image').src = product.image;
+                } else {
+                    document.getElementById('product-title').innerText = "Product Not Found";
+                    document.getElementById('product-price').innerText = "0.00";
+                }
+            } else {
+                // Show Catalog View
+                document.getElementById('product-view').style.display = 'none';
+                document.getElementById('catalog-view').style.display = 'grid';
+                document.title = "Catalog - TechHaven Demo";
+
+                const catalog = document.getElementById('catalog-view');
+                inventory.forEach(product => {
+                    const card = document.createElement('a');
+                    card.href = `?id=${product.id}`;
+                    card.className = 'catalog-card';
+                    
+                    // Show a generic average price range in the catalog
+                    const minP = (product.basePrice * 0.85).toFixed(0);
+                    const maxP = (product.basePrice * 1.15).toFixed(0);
+
+                    card.innerHTML = `
+                        <img class="catalog-image" src="${product.image}" alt="${product.name}">
+                        <div class="catalog-title">${product.name}</div>
+                        <div class="catalog-price">Avg: ${minP} - ${maxP} Lei</div>
+                    `;
+                    catalog.appendChild(card);
+                });
             }
         }
 
-        renderProduct();
+        init();
     </script>
 </body>
 </html>
