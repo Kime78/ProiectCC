@@ -63,37 +63,6 @@ class ProiectCcStack(Stack):
         # You will need to change this to the email address you verify in AWS SES
         verified_sender_email = "alerts@yourdomain.com"
 
-        # 5. Lambda Functions
-        # Shared Lambda runtime and code directory
-        lambda_kwargs = {
-            "runtime": _lambda.Runtime.PYTHON_3_9,
-            "code": _lambda.Code.from_asset("lambda"),
-        }
-
-        add_product_lambda = _lambda.Function(self, "AddProductLambda",
-            handler="add_product.handler",
-            environment={"TABLE_NAME": products_table.table_name},
-            **lambda_kwargs
-        )
-
-        get_products_lambda = _lambda.Function(self, "GetProductsLambda",
-            handler="get_products.handler",
-            environment={"TABLE_NAME": products_table.table_name},
-            **lambda_kwargs
-        )
-
-        check_product_lambda = _lambda.Function(self, "CheckProductLambda",
-            handler="check_product.handler",
-            environment={"TABLE_NAME": products_table.table_name},
-            **lambda_kwargs
-        )
-
-        delete_product_lambda = _lambda.Function(self, "DeleteProductLambda",
-            handler="delete_product.handler",
-            environment={"TABLE_NAME": products_table.table_name},
-            **lambda_kwargs
-        )
-
         # 5.5 Fargate Scraper Task
         vpc = ec2.Vpc(self, "ScraperVpc", max_azs=2, nat_gateways=1)
         cluster = ecs.Cluster(self, "ScraperCluster", vpc=vpc)
@@ -112,12 +81,61 @@ class ProiectCcStack(Stack):
             }
         )
 
+        # 5. Lambda Functions
+        # Shared Lambda runtime and code directory
+        lambda_kwargs = {
+            "runtime": _lambda.Runtime.PYTHON_3_9,
+            "code": _lambda.Code.from_asset("lambda"),
+        }
+
+        # Subnets as string
+        private_subnets = vpc.select_subnets(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS).subnet_ids
+        subnets_str = ",".join(private_subnets)
+
+        add_product_lambda = _lambda.Function(self, "AddProductLambda",
+            handler="add_product.handler",
+            environment={
+                "TABLE_NAME": products_table.table_name,
+                "CLUSTER_NAME": cluster.cluster_name,
+                "TASK_DEFINITION": task_definition.task_definition_arn,
+                "SUBNETS": subnets_str
+            },
+            **lambda_kwargs
+        )
+
+        get_products_lambda = _lambda.Function(self, "GetProductsLambda",
+            handler="get_products.handler",
+            environment={"TABLE_NAME": products_table.table_name},
+            **lambda_kwargs
+        )
+
+        check_product_lambda = _lambda.Function(self, "CheckProductLambda",
+            handler="check_product.handler",
+            environment={
+                "TABLE_NAME": products_table.table_name,
+                "CLUSTER_NAME": cluster.cluster_name,
+                "TASK_DEFINITION": task_definition.task_definition_arn,
+                "SUBNETS": subnets_str
+            },
+            **lambda_kwargs
+        )
+
+        delete_product_lambda = _lambda.Function(self, "DeleteProductLambda",
+            handler="delete_product.handler",
+            environment={"TABLE_NAME": products_table.table_name},
+            **lambda_kwargs
+        )
+
         # Permissions
         products_table.grant_read_write_data(add_product_lambda)
         products_table.grant_read_data(get_products_lambda)
         products_table.grant_read_write_data(check_product_lambda)
         products_table.grant_read_write_data(delete_product_lambda)
         products_table.grant_read_write_data(task_definition.task_role)
+        
+        # Grant run_task to lambdas that trigger scraper
+        task_definition.grant_run(add_product_lambda)
+        task_definition.grant_run(check_product_lambda)
         
         # Grant SES SendEmail permission to Scraper Task
         task_definition.task_role.add_to_policy(iam.PolicyStatement(
