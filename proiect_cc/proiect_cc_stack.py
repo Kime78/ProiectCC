@@ -16,6 +16,7 @@ from aws_cdk import (
     aws_cloudfront_origins as origins,
     aws_ecs as ecs,
     aws_ec2 as ec2,
+    aws_logs as logs,
 )
 from constructs import Construct
 
@@ -72,9 +73,18 @@ class ProiectCcStack(Stack):
             cpu=1024
         )
 
+        scraper_log_group = logs.LogGroup(self, "ScraperLogGroup",
+            log_group_name="/ecs/proiect-cc-scraper",
+            removal_policy=RemovalPolicy.DESTROY,
+            retention=logs.RetentionDays.ONE_WEEK
+        )
+
         container = task_definition.add_container("ScraperContainer",
             image=ecs.ContainerImage.from_asset("fargate_scraper"),
-            logging=ecs.LogDrivers.aws_logs(stream_prefix="Scraper"),
+            logging=ecs.LogDrivers.aws_logs(
+                stream_prefix="Playwright",
+                log_group=scraper_log_group
+            ),
             environment={
                 "TABLE_NAME": products_table.table_name,
                 "SENDER_EMAIL": verified_sender_email
