@@ -90,10 +90,10 @@ def extract_image(page):
     return None
 
 def get_emag_data(url):
-    print(f"Scraping: {url}")
+    print(f"Scraping: {url}", flush=True)
     # Enforce demo-shop ONLY, reject other domains to prevent timeout
     if "demo-shop.html" not in url:
-        print(f"[SKIPPED] Only demo-shop.html is supported in this restricted mode: {url}")
+        print(f"[SKIPPED] Only demo-shop.html is supported in this restricted mode: {url}", flush=True)
         return {
             "price": None,
             "name": url,
@@ -101,7 +101,16 @@ def get_emag_data(url):
         }
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                '--disable-dev-shm-usage',
+                '--no-sandbox',
+                '--disable-gpu',
+                '--disable-software-rasterizer',
+                '--disable-setuid-sandbox'
+            ]
+        )
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
             viewport={"width": 1920, "height": 1080}
@@ -197,8 +206,12 @@ def update_product(item_id, current_price, product_name, image=None, existing_hi
     )
 
 def run():
-    print("[START] Fargate eMAG scraper using Playwright")
-    items = get_all_items()
+    print("[START] Fargate scraper running", flush=True)
+    try:
+        items = get_all_items()
+    except Exception as e:
+        print(f"[FATAL ERROR] Cannot get items from DB: {e}", flush=True)
+        return
     
     processed = 0
     alerts_sent = 0
@@ -219,11 +232,11 @@ def run():
             image = emag_data.get('image')
             
             if current_price is None:
-                print(f"[NO PRICE] {url}")
+                print(f"[NO PRICE] {url}", flush=True)
                 errors += 1
                 continue
                 
-            print(f"[PRICE] {product_name} -> {current_price}")
+            print(f"[PRICE] {product_name} -> {current_price}", flush=True)
             
             if last_price is not None and isinstance(last_price, Decimal) and current_price < last_price and email:
                 send_price_alert(email, product_name, last_price, current_price, url)
@@ -235,10 +248,14 @@ def run():
             processed += 1
             
         except Exception as e:
-            print(f"[ITEM ERROR] {item.get('id')} -> {e}")
+            print(f"[ITEM ERROR] {item.get('id')} -> {e}", flush=True)
             errors += 1
             
-    print(f"[FINISHED] Processed: {processed}, Alerts: {alerts_sent}, Errors: {errors}")
+    print(f"[FINISHED] Processed: {processed}, Alerts: {alerts_sent}, Errors: {errors}", flush=True)
 
 if __name__ == "__main__":
-    run()
+    try:
+        run()
+    except Exception as e:
+        print(f"[UNHANDLED EXCEPTION] {e}", flush=True)
+        raise

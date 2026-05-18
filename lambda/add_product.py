@@ -31,7 +31,7 @@ def trigger_scraper():
             networkConfiguration={
                 'awsvpcConfiguration': {
                     'subnets': subnets,
-                    'assignPublicIp': 'DISABLED'
+                    'assignPublicIp': 'ENABLED'
                 }
             }
         )

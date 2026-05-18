@@ -65,7 +65,8 @@ class ProiectCcStack(Stack):
         verified_sender_email = "alerts@yourdomain.com"
 
         # 5.5 Fargate Scraper Task
-        vpc = ec2.Vpc(self, "ScraperVpc", max_azs=2, nat_gateways=1)
+        # Remove NAT Gateways to save costs and avoid routing issues. We will run the task in Public Subnets instead.
+        vpc = ec2.Vpc(self, "ScraperVpc", max_azs=2, nat_gateways=0)
         cluster = ecs.Cluster(self, "ScraperCluster", vpc=vpc)
 
         task_definition = ecs.FargateTaskDefinition(self, "ScraperTaskDef",
@@ -98,9 +99,9 @@ class ProiectCcStack(Stack):
             "code": _lambda.Code.from_asset("lambda"),
         }
 
-        # Subnets as string
-        private_subnets = vpc.select_subnets(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS).subnet_ids
-        subnets_str = ",".join(private_subnets)
+        # Subnets as string (switching to public subnets since we removed the NAT Gateway)
+        public_subnets = vpc.select_subnets(subnet_type=ec2.SubnetType.PUBLIC).subnet_ids
+        subnets_str = ",".join(public_subnets)
 
         add_product_lambda = _lambda.Function(self, "AddProductLambda",
             handler="add_product.handler",
@@ -161,7 +162,8 @@ class ProiectCcStack(Stack):
         rule.add_target(targets.EcsTask(
             cluster=cluster,
             task_definition=task_definition,
-            subnet_selection=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS)
+            subnet_selection=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
+            assign_public_ip=True # Allow pulling image from public ECR
         ))
 
         # 7. API Gateway
