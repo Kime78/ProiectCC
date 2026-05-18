@@ -62,7 +62,7 @@ class ProiectCcStack(Stack):
 
         # 4. Email Sender (SES requires verifying this email in the AWS Console)
         # You will need to change this to the email address you verify in AWS SES
-        verified_sender_email = "alerts@yourdomain.com"
+        verified_sender_email = "aimaster610@gmail.com"
 
         # 5. Lambda Functions
         # Shared Lambda runtime and code directory

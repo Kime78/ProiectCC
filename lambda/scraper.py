@@ -9,7 +9,7 @@ from decimal import Decimal
 from botocore.exceptions import ClientError
 
 table_name = os.environ.get('TABLE_NAME')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'alerts@yourdomain.com')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'aimaster610@gmail.com')
 
 dynamodb = boto3.resource('dynamodb')
 ses = boto3.client('ses', region_name=os.environ.get('AWS_REGION', 'us-east-1'))

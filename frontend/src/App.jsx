@@ -118,24 +118,25 @@ function App({ signOut, user }) {
 
   // Option 1: Polling mechanism
   useEffect(() => {
-    // Only poll if the backend told us the scraper is actively running
-    // or if we are actively checking a specific product
+    // Only poll if a check was manually triggered OR any product hasn't been scraped yet
+    const needsPolling = products.some(p => p.last_price == null || p.name === "Adding product...") || checkingId;
+    
     let interval;
-    if (scraperRunning || checkingId) {
+    if (needsPolling) {
       interval = setInterval(() => {
         fetchProducts();
-      }, 5000);
+      }, 3000);
     }
     
     return () => clearInterval(interval);
-  }, [scraperRunning, checkingId]);
+  }, [products, checkingId]);
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 sm:p-8">
       <div className="max-w-7xl mx-auto bg-white p-6 sm:p-10 rounded-xl shadow-lg">
         
         <div className="flex flex-col sm:flex-row justify-between items-center mb-8 border-b pb-4">
-          <h1 className="text-3xl font-extrabold text-blue-900 mb-4 sm:mb-0">eMag Price Tracker</h1>
+          <h1 className="text-3xl font-extrabold text-blue-900 mb-4 sm:mb-0">eShop Price Tracker</h1>
           <div className="flex items-center gap-4">
             <span className="text-gray-600 text-sm hidden sm:block">Logged in as <b>{user?.signInDetails?.loginId}</b></span>
             <button 
@@ -158,7 +159,7 @@ function App({ signOut, user }) {
             <label className="block text-sm font-medium text-gray-700 mb-1">Add Product to Watchlist</label>
             <input 
               type="url" 
-              placeholder="Paste eMag Product URL here..." 
+              placeholder="Paste shop Product URL here..." 
               value={url} 
               onChange={(e) => setUrl(e.target.value)} 
               required 
@@ -196,7 +197,7 @@ function App({ signOut, user }) {
         <div className="space-y-4">
           {products.map((p) => {
             const isChecking = checkingId === p.id;
-            const isFailed = p.price === null && !scraperRunning;
+            const isFailed = false; // with quick lambda, it doesn't hang gracefully like fargate did unless it hits hard errors
             
             return (
             <div
@@ -338,7 +339,7 @@ const components = {
 
 export default function AppWithAuth() {
   return (
-    <Authenticator components={components}>
+    <Authenticator loginMechanisms={['email']} components={components}>
       {({ signOut, user }) => <App signOut={signOut} user={user} />}
     </Authenticator>
   );
