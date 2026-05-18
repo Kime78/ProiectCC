@@ -137,6 +137,7 @@ class ProiectCcStack(Stack):
         )
 
         # Permissions
+        scraper_log_group.grant_write(task_definition.execution_role)
         products_table.grant_read_write_data(add_product_lambda)
         products_table.grant_read_data(get_products_lambda)
         products_table.grant_read_write_data(check_product_lambda)

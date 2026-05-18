@@ -91,6 +91,15 @@ def extract_image(page):
 
 def get_emag_data(url):
     print(f"Scraping: {url}")
+    # Enforce demo-shop ONLY, reject other domains to prevent timeout
+    if "demo-shop.html" not in url:
+        print(f"[SKIPPED] Only demo-shop.html is supported in this restricted mode: {url}")
+        return {
+            "price": None,
+            "name": url,
+            "image": None
+        }
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
@@ -101,7 +110,7 @@ def get_emag_data(url):
         
         try:
             # Navigate and explicitly wait for some data to load into the page DOM
-            page.goto(url, timeout=45000, wait_until="domcontentloaded")
+            page.goto(url, timeout=15000, wait_until="domcontentloaded")
             
             # Adding a sleep helps bypass elements loading via dynamic asynchronous scripts
             page.wait_for_timeout(3000)
