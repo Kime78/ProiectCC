@@ -17,6 +17,7 @@ const API_URL = import.meta.env.VITE_API_URL || "";
 
 function App({ signOut, user }) {
   const [products, setProducts] = useState([]);
+  const [scraperRunning, setScraperRunning] = useState(false);
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [checkingId, setCheckingId] = useState(null);
@@ -52,6 +53,7 @@ function App({ signOut, user }) {
       const headers = await getHeaders();
       const res = await axios.get(`${API_URL}products`, { headers });
       setProducts(res.data.products || []);
+      setScraperRunning(res.data.scraper_running || false);
     } catch (err) {
       console.error("Error fetching products:", err);
       addLog(`Failed to fetch products: ${getErrorMessage(err, "Unknown error")}`, "error");
@@ -116,19 +118,17 @@ function App({ signOut, user }) {
 
   // Option 1: Polling mechanism
   useEffect(() => {
-    // Check if any product is currently being scraped (price is null or it's a specific placeholder)
-    const isScraping = products.some(p => p.price === null || p.name === "Adding product..." || checkingId === p.id);
-
+    // Only poll if the backend told us the scraper is actively running
+    // or if we are actively checking a specific product
     let interval;
-    if (isScraping) {
-      // Poll every 5 seconds if a Fargate task is running
+    if (scraperRunning || checkingId) {
       interval = setInterval(() => {
         fetchProducts();
       }, 5000);
     }
     
     return () => clearInterval(interval);
-  }, [products, checkingId]);
+  }, [scraperRunning, checkingId]);
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 sm:p-8">
@@ -196,13 +196,20 @@ function App({ signOut, user }) {
         <div className="space-y-4">
           {products.map((p) => {
             const isChecking = checkingId === p.id;
+            const isFailed = p.price === null && !scraperRunning;
+            
             return (
             <div
               key={p.id}
-              className={`border border-gray-200 rounded-xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white hover:border-blue-300 transition-colors shadow-sm ${
+              className={`border border-gray-200 rounded-xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white hover:border-blue-300 transition-colors shadow-sm relative ${
                 isChecking ? "ring-2 ring-blue-200 bg-blue-50/40" : ""
               }`}
             >
+              {isFailed && (
+                <div className="absolute -top-3 -right-2 text-xs font-bold bg-red-100 text-red-600 px-2 py-1 rounded shadow-sm border border-red-200">
+                  Scraper Stopped
+                </div>
+              )}
               <div className="flex gap-4 flex-1 items-start w-full">
                 {/* PRODUCT PHOTO */}
                 <div className="w-20 h-20 flex-shrink-0 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden flex items-center justify-center">

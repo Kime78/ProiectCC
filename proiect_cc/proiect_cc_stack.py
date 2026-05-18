@@ -66,7 +66,13 @@ class ProiectCcStack(Stack):
 
         # 5.5 Fargate Scraper Task
         # Remove NAT Gateways to save costs and avoid routing issues. We will run the task in Public Subnets instead.
-        vpc = ec2.Vpc(self, "ScraperVpc", max_azs=2, nat_gateways=0)
+        vpc = ec2.Vpc(self, "ScraperVpc", 
+            max_azs=2, 
+            nat_gateways=0,
+            subnet_configuration=[
+                ec2.SubnetConfiguration(name="Public", subnet_type=ec2.SubnetType.PUBLIC)
+            ]
+        )
         cluster = ecs.Cluster(self, "ScraperCluster", vpc=vpc)
 
         task_definition = ecs.FargateTaskDefinition(self, "ScraperTaskDef",
@@ -116,7 +122,10 @@ class ProiectCcStack(Stack):
 
         get_products_lambda = _lambda.Function(self, "GetProductsLambda",
             handler="get_products.handler",
-            environment={"TABLE_NAME": products_table.table_name},
+            environment={
+                "TABLE_NAME": products_table.table_name,
+                "CLUSTER_NAME": cluster.cluster_name,
+            },
             **lambda_kwargs
         )
 
@@ -148,6 +157,12 @@ class ProiectCcStack(Stack):
         # Grant run_task to lambdas that trigger scraper
         task_definition.grant_run(add_product_lambda)
         task_definition.grant_run(check_product_lambda)
+        
+        # Grant get_products lambda permission to list tasks
+        get_products_lambda.add_to_role_policy(iam.PolicyStatement(
+            actions=["ecs:ListTasks"],
+            resources=["*"]
+        ))
         
         # Grant SES SendEmail permission to Scraper Task
         task_definition.task_role.add_to_policy(iam.PolicyStatement(
