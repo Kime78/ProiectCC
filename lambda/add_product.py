@@ -9,35 +9,26 @@ import re
 from decimal import Decimal
 
 dynamodb = boto3.resource('dynamodb')
-ecs = boto3.client('ecs')
+lambda_client = boto3.client('lambda')
 
 table_name = os.environ.get('TABLE_NAME', '')
 table = dynamodb.Table(table_name)
-cluster_name = os.environ.get('CLUSTER_NAME', '')
-task_definition = os.environ.get('TASK_DEFINITION', '')
-subnets = os.environ.get('SUBNETS', '').split(',')
+scraper_name = os.environ.get('SCRAPER_FUNCTION_NAME', '')
 
 def trigger_scraper():
-    """Trigger the Fargate Scraper Task asynchronously."""
-    if not cluster_name or not task_definition or not subnets[0]:
-        print("Missing ECS Configuration, skipping scraper trigger.")
+    """Trigger the Scraper Lambda asynchronously."""
+    if not scraper_name:
+        print("Missing Lambda Configuration, skipping scraper trigger.")
         return
         
     try:
-        ecs.run_task(
-            cluster=cluster_name,
-            launchType='FARGATE',
-            taskDefinition=task_definition,
-            networkConfiguration={
-                'awsvpcConfiguration': {
-                    'subnets': subnets,
-                    'assignPublicIp': 'ENABLED'
-                }
-            }
+        lambda_client.invoke(
+            FunctionName=scraper_name,
+            InvocationType='Event'
         )
-        print("Scraper Fargate Task triggered successfully.")
+        print("Scraper Lambda triggered successfully.")
     except Exception as e:
-        print(f"Failed to trigger Fargate task: {e}")
+        print(f"Failed to trigger Lambda: {e}")
 
 def handler(event, context):
     try:

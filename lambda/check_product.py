@@ -11,9 +11,7 @@ import boto3
 # -----------------------------------------------------------------------------
 
 TABLE_NAME = os.environ["TABLE_NAME"]
-CLUSTER_NAME = os.environ.get("CLUSTER_NAME", "")
-TASK_DEFINITION = os.environ.get("TASK_DEFINITION", "")
-SUBNETS = os.environ.get("SUBNETS", "").split(",")
+SCRAPER_NAME = os.environ.get("SCRAPER_FUNCTION_NAME", "")
 
 # -----------------------------------------------------------------------------
 # AWS
@@ -21,7 +19,7 @@ SUBNETS = os.environ.get("SUBNETS", "").split(",")
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)
-ecs = boto3.client("ecs")
+lambda_client = boto3.client("lambda")
 
 # -----------------------------------------------------------------------------
 # Logging
@@ -51,26 +49,19 @@ def response(status_code: int, body: dict):
     }
 
 def trigger_scraper():
-    """Trigger the Fargate Scraper Task asynchronously."""
-    if not CLUSTER_NAME or not TASK_DEFINITION or not SUBNETS[0]:
-        logger.error("Missing ECS Configuration, skipping scraper trigger.")
+    """Trigger the Scraper Lambda asynchronously."""
+    if not SCRAPER_NAME:
+        logger.error("Missing Lambda Configuration, skipping scraper trigger.")
         return
         
     try:
-        ecs.run_task(
-            cluster=CLUSTER_NAME,
-            launchType='FARGATE',
-            taskDefinition=TASK_DEFINITION,
-            networkConfiguration={
-                'awsvpcConfiguration': {
-                    'subnets': SUBNETS,
-                    'assignPublicIp': 'ENABLED'
-                }
-            }
+        lambda_client.invoke(
+            FunctionName=SCRAPER_NAME,
+            InvocationType='Event'
         )
-        logger.info("Scraper Fargate Task triggered successfully.")
+        logger.info("Scraper Lambda triggered successfully.")
     except Exception as e:
-        logger.error(f"Failed to trigger Fargate task: {e}")
+        logger.error(f"Failed to trigger Lambda: {e}")
 
 # -----------------------------------------------------------------------------
 # Lambda Handler

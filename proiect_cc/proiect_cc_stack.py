@@ -64,40 +64,6 @@ class ProiectCcStack(Stack):
         # You will need to change this to the email address you verify in AWS SES
         verified_sender_email = "alerts@yourdomain.com"
 
-        # 5.5 Fargate Scraper Task
-        # Remove NAT Gateways to save costs and avoid routing issues. We will run the task in Public Subnets instead.
-        vpc = ec2.Vpc(self, "ScraperVpc", 
-            max_azs=2, 
-            nat_gateways=0,
-            subnet_configuration=[
-                ec2.SubnetConfiguration(name="Public", subnet_type=ec2.SubnetType.PUBLIC)
-            ]
-        )
-        cluster = ecs.Cluster(self, "ScraperCluster", vpc=vpc)
-
-        task_definition = ecs.FargateTaskDefinition(self, "ScraperTaskDef",
-            memory_limit_mib=2048,
-            cpu=1024
-        )
-
-        scraper_log_group = logs.LogGroup(self, "ScraperLogGroup",
-            log_group_name="/ecs/proiect-cc-scraper",
-            removal_policy=RemovalPolicy.DESTROY,
-            retention=logs.RetentionDays.ONE_WEEK
-        )
-
-        container = task_definition.add_container("ScraperContainer",
-            image=ecs.ContainerImage.from_asset("fargate_scraper"),
-            logging=ecs.LogDrivers.aws_logs(
-                stream_prefix="Playwright",
-                log_group=scraper_log_group
-            ),
-            environment={
-                "TABLE_NAME": products_table.table_name,
-                "SENDER_EMAIL": verified_sender_email
-            }
-        )
-
         # 5. Lambda Functions
         # Shared Lambda runtime and code directory
         lambda_kwargs = {
@@ -105,17 +71,22 @@ class ProiectCcStack(Stack):
             "code": _lambda.Code.from_asset("lambda"),
         }
 
-        # Subnets as string (switching to public subnets since we removed the NAT Gateway)
-        public_subnets = vpc.select_subnets(subnet_type=ec2.SubnetType.PUBLIC).subnet_ids
-        subnets_str = ",".join(public_subnets)
+        # The new Scraper Lambda (replaces Fargate fully)
+        scraper_lambda = _lambda.Function(self, "ScraperLambda",
+            handler="scraper.handler",
+            environment={
+                "TABLE_NAME": products_table.table_name,
+                "SENDER_EMAIL": verified_sender_email
+            },
+            timeout=Duration.minutes(3), # generous timeout just in case
+            **lambda_kwargs
+        )
 
         add_product_lambda = _lambda.Function(self, "AddProductLambda",
             handler="add_product.handler",
             environment={
                 "TABLE_NAME": products_table.table_name,
-                "CLUSTER_NAME": cluster.cluster_name,
-                "TASK_DEFINITION": task_definition.task_definition_arn,
-                "SUBNETS": subnets_str
+                "SCRAPER_FUNCTION_NAME": scraper_lambda.function_name
             },
             **lambda_kwargs
         )
@@ -124,7 +95,6 @@ class ProiectCcStack(Stack):
             handler="get_products.handler",
             environment={
                 "TABLE_NAME": products_table.table_name,
-                "CLUSTER_NAME": cluster.cluster_name,
             },
             **lambda_kwargs
         )
@@ -133,9 +103,7 @@ class ProiectCcStack(Stack):
             handler="check_product.handler",
             environment={
                 "TABLE_NAME": products_table.table_name,
-                "CLUSTER_NAME": cluster.cluster_name,
-                "TASK_DEFINITION": task_definition.task_definition_arn,
-                "SUBNETS": subnets_str
+                "SCRAPER_FUNCTION_NAME": scraper_lambda.function_name
             },
             **lambda_kwargs
         )
@@ -147,39 +115,27 @@ class ProiectCcStack(Stack):
         )
 
         # Permissions
-        scraper_log_group.grant_write(task_definition.execution_role)
+        products_table.grant_read_write_data(scraper_lambda)
         products_table.grant_read_write_data(add_product_lambda)
         products_table.grant_read_data(get_products_lambda)
         products_table.grant_read_write_data(check_product_lambda)
         products_table.grant_read_write_data(delete_product_lambda)
-        products_table.grant_read_write_data(task_definition.task_role)
         
-        # Grant run_task to lambdas that trigger scraper
-        task_definition.grant_run(add_product_lambda)
-        task_definition.grant_run(check_product_lambda)
+        # Grant lambdas to invoke the scraper manually
+        scraper_lambda.grant_invoke(add_product_lambda)
+        scraper_lambda.grant_invoke(check_product_lambda)
         
-        # Grant get_products lambda permission to list tasks
-        get_products_lambda.add_to_role_policy(iam.PolicyStatement(
-            actions=["ecs:ListTasks"],
-            resources=["*"]
-        ))
-        
-        # Grant SES SendEmail permission to Scraper Task
-        task_definition.task_role.add_to_policy(iam.PolicyStatement(
+        # Grant SES SendEmail permission to Scraper Lambda
+        scraper_lambda.add_to_role_policy(iam.PolicyStatement(
             actions=["ses:SendEmail", "ses:SendRawEmail"],
             resources=["*"]
         ))
 
         # 6. EventBridge Rule (trigger scraper every N hours, e.g., 6 hours)
         rule = events.Rule(self, "ScraperScheduleRule",
-            schedule=events.Schedule.rate(Duration.hours(6))
+            schedule=events.Schedule.rate(Duration.minutes(1))
         )
-        rule.add_target(targets.EcsTask(
-            cluster=cluster,
-            task_definition=task_definition,
-            subnet_selection=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
-            assign_public_ip=True # Allow pulling image from public ECR
-        ))
+        rule.add_target(targets.LambdaFunction(scraper_lambda))
 
         # 7. API Gateway
         api = apigw.RestApi(self, "ProductsApi",

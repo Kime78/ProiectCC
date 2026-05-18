@@ -4,9 +4,7 @@ import boto3
 from boto3.dynamodb.conditions import Attr
 
 dynamodb = boto3.resource('dynamodb')
-ecs = boto3.client('ecs')
 table_name = os.environ.get('TABLE_NAME', '')
-cluster_name = os.environ.get('CLUSTER_NAME', '')
 table = dynamodb.Table(table_name)
 
 class DecimalEncoder(json.JSONEncoder):
@@ -28,16 +26,8 @@ def handler(event, context):
         )
         products = response.get('Items', [])
         
-        # Check if scraper is running
+        # Lambda is so fast we don't need to report "scraper_running" honestly
         scraper_running = False
-        if cluster_name:
-            try:
-                tasks_running = ecs.list_tasks(cluster=cluster_name, desiredStatus='RUNNING')
-                tasks_pending = ecs.list_tasks(cluster=cluster_name, desiredStatus='PENDING')
-                if tasks_running.get('taskArns') or tasks_pending.get('taskArns'):
-                    scraper_running = True
-            except Exception as e:
-                print("ECS Error:", e)
 
         return {
             "statusCode": 200,
