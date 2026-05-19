@@ -133,7 +133,7 @@ class ProiectCcStack(Stack):
 
         # 6. EventBridge Rule (trigger scraper every N hours, e.g., 6 hours)
         rule = events.Rule(self, "ScraperScheduleRule",
-            schedule=events.Schedule.rate(Duration.minutes(1))
+            schedule=events.Schedule.rate(Duration.minutes(15))
         )
         rule.add_target(targets.LambdaFunction(scraper_lambda))
 

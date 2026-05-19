@@ -148,11 +148,22 @@ def handler(event, context):
                 errors += 1
                 continue
                 
-            print(f"[PRICE] {product_name} -> {current_price}", flush=True)
+            print(f"[PRICE] {product_name} -> {current_price} | Last: {last_price} ({type(last_price)}) | Email: {email}", flush=True)
             
-            if last_price is not None and isinstance(last_price, Decimal) and current_price < last_price and email:
-                send_price_alert(email, product_name, last_price, current_price, url)
-                alerts_sent += 1
+            # Decimal check and price comparison
+            try:
+                if last_price is not None:
+                    # Convert to Decimal just in case DynamoDB or another process stored it as a float/string
+                    last_price_dec = Decimal(str(last_price))
+                    
+                    if current_price < last_price_dec and email and email != 'no-email':
+                        print(f"    -> Sending alert to {email} (Old: {last_price_dec}, New: {current_price})", flush=True)
+                        send_price_alert(email, product_name, last_price_dec, current_price, url)
+                        alerts_sent += 1
+                    elif current_price < last_price_dec:
+                        print(f"    -> Can't send alert, invalid email: {email}", flush=True)
+            except Exception as eval_err:
+                print(f"[EVAL ERROR] comparing prices: {eval_err}", flush=True)
                 
             # Always update so we get the graph history
             update_product(item['id'], current_price, product_name, image, existing_history)
