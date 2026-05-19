@@ -38,6 +38,21 @@ def handler(event, context):
         if not url:
             return {"statusCode": 400, "body": json.dumps({"error": "url is required"})}
             
+        def get_initial_title(product_url):
+            try:
+                req = urllib.request.Request(
+                    product_url, 
+                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+                )
+                response = urllib.request.urlopen(req, timeout=5)
+                html = response.read().decode('utf-8', errors='ignore')
+                match = re.search(r'<title>(.*?)</title>', html, re.IGNORECASE | re.DOTALL)
+                if match:
+                    return match.group(1).strip()
+            except Exception as e:
+                print(f"Failed to fetch initial title for {product_url}: {e}")
+            return "Adding product..."
+            
         claims = event.get('requestContext', {}).get('authorizer', {}).get('claims', {})
         user_id = claims.get('sub', 'anonymous')
         email = claims.get('email', 'no-email')
@@ -49,7 +64,7 @@ def handler(event, context):
             'email': email,
             'url': url,
             'last_price': None,
-            'name': "Adding product...",
+            'name': get_initial_title(url),
             'image': None,
             'last_check_time': int(time.time()),
             'price_history': []
