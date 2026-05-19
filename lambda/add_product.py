@@ -46,6 +46,18 @@ def handler(event, context):
                 )
                 response = urllib.request.urlopen(req, timeout=5)
                 html = response.read().decode('utf-8', errors='ignore')
+                
+                # Check if it's the demo-shop to parse from its inventory JS
+                if "demo-shop.html" in product_url:
+                    id_match = re.search(r'\?id=([^&]+)', product_url)
+                    if id_match:
+                        prod_id = id_match.group(1)
+                        pattern = r'id:\s*["\']' + re.escape(prod_id) + r'["\'].*?name:\s*["\'](.*?)["\']'
+                        prod_match = re.search(pattern, html, re.DOTALL | re.IGNORECASE)
+                        if prod_match:
+                            return prod_match.group(1).strip()
+                
+                # Fallback to <title>
                 match = re.search(r'<title>(.*?)</title>', html, re.IGNORECASE | re.DOTALL)
                 if match:
                     return match.group(1).strip()
